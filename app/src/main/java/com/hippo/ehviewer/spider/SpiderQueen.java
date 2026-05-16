@@ -49,6 +49,7 @@ import com.hippo.ehviewer.client.parser.GalleryPageApiParser;
 import com.hippo.ehviewer.client.parser.GalleryPageParser;
 import com.hippo.ehviewer.client.parser.GalleryPageUrlParser;
 import com.hippo.ehviewer.gallery.GalleryProvider2;
+import com.hippo.ehviewer.library.LibraryManifest;
 import com.hippo.lib.glgallery.GalleryPageView;
 import com.hippo.lib.glgallery.GalleryProvider;
 import com.hippo.lib.image.Image;
@@ -160,6 +161,7 @@ public final class SpiderQueen implements Runnable {
     private ThreadPoolExecutor mWorkerPoolExecutor;
     private int mWorkerCount;
     private volatile int[] mPageStateArray;
+    private volatile String mError;
     // For download, when it go to mPageStateArray.size(), done
     private volatile int mDownloadPage = -1;
     private final AtomicReference<String> showKey = new AtomicReference<>();
@@ -457,7 +459,7 @@ public final class SpiderQueen implements Runnable {
 
     public String getError() {
         if (mQueenThread == null) {
-            return "Error";
+            return mError != null ? mError : "Error";
         } else {
             return null;
         }
@@ -868,6 +870,7 @@ public final class SpiderQueen implements Runnable {
             UniFile file = downloadDir.createFile(SPIDER_INFO_FILENAME);
             try {
                 spiderInfo.write(file.openOutputStream());
+                LibraryManifest.write(mGalleryInfo, spiderInfo, downloadDir);
             } catch (Throwable e) {
                 ExceptionUtils.throwIfFatal(e);
                 // Ignore
@@ -887,6 +890,13 @@ public final class SpiderQueen implements Runnable {
         }
     }
 
+    private void writeLibraryManifest(@NonNull SpiderInfo spiderInfo) {
+        UniFile downloadDir = mSpiderDen.getDownloadDir();
+        if (downloadDir != null && downloadDir.isDirectory()) {
+            LibraryManifest.write(mGalleryInfo, spiderInfo, downloadDir);
+        }
+    }
+
     private void runInternal() {
         // Read spider info
         SpiderInfo spiderInfo = readSpiderInfoFromLocal();
@@ -898,6 +908,10 @@ public final class SpiderQueen implements Runnable {
 
         // Spider info from internet
         if (spiderInfo == null) {
+            if (Settings.getOfflineMode()) {
+                mError = GetText.getString(R.string.error_offline_mode);
+                return;
+            }
             spiderInfo = readSpiderInfoFromInternet();
         }
 
@@ -1504,6 +1518,10 @@ public final class SpiderQueen implements Runnable {
 
                     // Download finished
                     updatePageState(index, STATE_FINISHED);
+                    SpiderInfo currentSpiderInfo = mSpiderInfo.get();
+                    if (currentSpiderInfo != null) {
+                        writeLibraryManifest(currentSpiderInfo);
+                    }
                     try {
                         Thread.sleep(mDownloadDelay);
                     } catch (InterruptedException e) {
@@ -1583,6 +1601,12 @@ public final class SpiderQueen implements Runnable {
             // Check exist for not force request
             if (!force && mSpiderDen.contain(index)) {
                 updatePageState(index, STATE_FINISHED);
+                writeLibraryManifest(spiderInfo);
+                return true;
+            }
+
+            if (Settings.getOfflineMode()) {
+                updatePageState(index, STATE_FAILED, GetText.getString(R.string.error_offline_mode));
                 return true;
             }
 

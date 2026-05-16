@@ -17,6 +17,7 @@
 package com.hippo.ehviewer.client;
 
 import android.content.Context;
+import android.text.TextUtils;
 
 import com.hippo.network.CookieRepository;
 
@@ -32,6 +33,23 @@ public class EhCookieStore extends CookieRepository {
     public static final String KEY_IPD_MEMBER_ID = "ipb_member_id";
     public static final String KEY_IPD_PASS_HASH = "ipb_pass_hash";
     public static final String KEY_IGNEOUS = "igneous";
+    private static final String[] IDENTITY_DOMAINS = {
+            EhUrl.DOMAIN_E,
+            EhUrl.DOMAIN_EX,
+            EhUrl.DOMAIN_FORUMS
+    };
+    private static final String[] IDENTITY_HOSTS = {
+            EhUrl.HOST_E,
+            EhUrl.HOST_EX,
+            EhUrl.URL_FORUMS
+    };
+    private static final String[] IDENTITY_COOKIE_NAMES = {
+            KEY_IPD_MEMBER_ID,
+            KEY_IPD_PASS_HASH,
+            KEY_IGNEOUS
+    };
+
+    private final SecureCookieStorage mSecureCookieStorage;
 
     public static final Cookie sTipsCookie =
             new Cookie.Builder()
@@ -44,16 +62,66 @@ public class EhCookieStore extends CookieRepository {
 
     public EhCookieStore(Context context) {
         super(context, "okhttp3-cookie.db");
+        mSecureCookieStorage = new SecureCookieStorage(context);
+        migrateLegacyIdentityCookies();
+        if (hasSecureIdentityCookies()) {
+            removeLegacyIdentityCookies();
+        }
+        restoreIdentityCookies();
+    }
+
+    @Override
+    public synchronized void addCookie(Cookie cookie) {
+        if (!isIdentityCookie(cookie.name())) {
+            super.addCookie(cookie);
+            return;
+        }
+
+        if (cookie.expiresAt() <= System.currentTimeMillis()) {
+            mSecureCookieStorage.remove(cookie.name());
+            super.addCookie(cookie);
+            return;
+        }
+
+        mSecureCookieStorage.put(cookie.name(), cookie.value());
+        super.addCookie(toSessionCookie(cookie));
     }
 
     public void signOut() {
         clear();
+        mSecureCookieStorage.clear();
     }
 
     public boolean hasSignedIn() {
         HttpUrl url = HttpUrl.parse(EhUrl.HOST_E);
         return contains(url, KEY_IPD_MEMBER_ID) &&
                 contains(url, KEY_IPD_PASS_HASH);
+    }
+
+    public String getIdentityCookieValue(String name) {
+        String value = mSecureCookieStorage.get(name);
+        if (!TextUtils.isEmpty(value)) {
+            return value;
+        }
+
+        for (String host : IDENTITY_HOSTS) {
+            HttpUrl url = HttpUrl.parse(host);
+            if (url == null) {
+                continue;
+            }
+            for (Cookie cookie : getCookies(url)) {
+                if (name.equals(cookie.name())) {
+                    return cookie.value();
+                }
+            }
+        }
+        return null;
+    }
+
+    public static boolean isIdentityCookie(String name) {
+        return KEY_IPD_MEMBER_ID.equals(name) ||
+                KEY_IPD_PASS_HASH.equals(name) ||
+                KEY_IGNEOUS.equals(name);
     }
 
     public static Cookie newCookie(Cookie cookie, String newDomain, boolean forcePersistent,
@@ -109,5 +177,88 @@ public class EhCookieStore extends CookieRepository {
         } else {
             return cookies;
         }
+    }
+
+    private void restoreIdentityCookies() {
+        String ipbMemberId = mSecureCookieStorage.get(KEY_IPD_MEMBER_ID);
+        String ipbPassHash = mSecureCookieStorage.get(KEY_IPD_PASS_HASH);
+        if (TextUtils.isEmpty(ipbMemberId) || TextUtils.isEmpty(ipbPassHash)) {
+            return;
+        }
+
+        for (String domain : IDENTITY_DOMAINS) {
+            addIdentitySessionCookie(KEY_IPD_MEMBER_ID, ipbMemberId, domain);
+            addIdentitySessionCookie(KEY_IPD_PASS_HASH, ipbPassHash, domain);
+            String igneous = mSecureCookieStorage.get(KEY_IGNEOUS);
+            if (!TextUtils.isEmpty(igneous)) {
+                addIdentitySessionCookie(KEY_IGNEOUS, igneous, domain);
+            }
+        }
+    }
+
+    private boolean hasSecureIdentityCookies() {
+        return !TextUtils.isEmpty(mSecureCookieStorage.get(KEY_IPD_MEMBER_ID)) &&
+                !TextUtils.isEmpty(mSecureCookieStorage.get(KEY_IPD_PASS_HASH));
+    }
+
+    private void migrateLegacyIdentityCookies() {
+        for (String host : IDENTITY_HOSTS) {
+            HttpUrl url = HttpUrl.parse(host);
+            if (url == null) {
+                continue;
+            }
+            for (Cookie cookie : getCookies(url)) {
+                if (isIdentityCookie(cookie.name()) &&
+                        TextUtils.isEmpty(mSecureCookieStorage.get(cookie.name()))) {
+                    mSecureCookieStorage.put(cookie.name(), cookie.value());
+                }
+            }
+        }
+    }
+
+    private void removeLegacyIdentityCookies() {
+        for (String domain : IDENTITY_DOMAINS) {
+            for (String name : IDENTITY_COOKIE_NAMES) {
+                super.addCookie(expiredCookie(name, domain));
+            }
+        }
+    }
+
+    private void addIdentitySessionCookie(String name, String value, String domain) {
+        super.addCookie(new Cookie.Builder()
+                .name(name)
+                .value(value)
+                .domain(domain)
+                .path("/")
+                .build());
+    }
+
+    private static Cookie expiredCookie(String name, String domain) {
+        return new Cookie.Builder()
+                .name(name)
+                .value("")
+                .domain(domain)
+                .path("/")
+                .expiresAt(0L)
+                .build();
+    }
+
+    private static Cookie toSessionCookie(Cookie cookie) {
+        Cookie.Builder builder = new Cookie.Builder()
+                .name(cookie.name())
+                .value(cookie.value())
+                .path(cookie.path());
+        if (cookie.hostOnly()) {
+            builder.hostOnlyDomain(cookie.domain());
+        } else {
+            builder.domain(cookie.domain());
+        }
+        if (cookie.secure()) {
+            builder.secure();
+        }
+        if (cookie.httpOnly()) {
+            builder.httpOnly();
+        }
+        return builder.build();
     }
 }

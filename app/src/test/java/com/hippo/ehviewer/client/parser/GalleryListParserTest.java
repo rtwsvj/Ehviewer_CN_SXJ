@@ -22,29 +22,33 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
-import edu.emory.mathcs.backport.java.util.Arrays;
+import com.hippo.ehviewer.EhDB;
+import com.hippo.ehviewer.Settings;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.List;
 import okio.BufferedSource;
 import okio.Okio;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.ParameterizedRobolectricTestRunner;
+import org.robolectric.RuntimeEnvironment;
 
 @RunWith(ParameterizedRobolectricTestRunner.class)
 public class GalleryListParserTest {
 
-  private static final String E_MINIMAL = "GalleryListParserTestEMinimal.GalleryTopListEX.html";
-  private static final String E_MINIMAL_PLUS = "GalleryListParserTestEMinimalPlus.GalleryTopListEX.html";
-  private static final String E_COMPAT = "GalleryListParserTestECompat.GalleryTopListEX.html";
-  private static final String E_EXTENDED = "GalleryListParserTestEExtended.GalleryTopListEX.html";
-  private static final String E_THUMBNAIL = "GalleryListParserTestEThumbnail.GalleryTopListEX.html";
+  private static final String E_MINIMAL = "GalleryListParserTestEMinimal.html";
+  private static final String E_MINIMAL_PLUS = "GalleryListParserTestEMinimalPlus.html";
+  private static final String E_COMPAT = "GalleryListParserTestECompat.html";
+  private static final String E_EXTENDED = "GalleryListParserTestEExtended.html";
+  private static final String E_THUMBNAIL = "GalleryListParserTestEThumbnail.html";
 
-  private static final String EX_MINIMAL = "GalleryListParserTestExMinimal.GalleryTopListEX.html";
-  private static final String EX_MINIMAL_PLUS = "GalleryListParserTestExMinimalPlus.GalleryTopListEX.html";
-  private static final String EX_COMPAT = "GalleryListParserTestExCompat.GalleryTopListEX.html";
-  private static final String EX_EXTENDED = "GalleryListParserTestExExtended.GalleryTopListEX.html";
-  private static final String EX_THUMBNAIL = "GalleryListParserTestExThumbnail.GalleryTopListEX.html";
+  private static final String EX_MINIMAL = "GalleryListParserTestExMinimal.html";
+  private static final String EX_MINIMAL_PLUS = "GalleryListParserTestExMinimalPlus.html";
+  private static final String EX_COMPAT = "GalleryListParserTestExCompat.html";
+  private static final String EX_EXTENDED = "GalleryListParserTestExExtended.html";
+  private static final String EX_THUMBNAIL = "GalleryListParserTestExThumbnail.html";
 
   @ParameterizedRobolectricTestRunner.Parameters(name = "{index}-{0}")
   public static List data() {
@@ -62,7 +66,17 @@ public class GalleryListParserTest {
     });
   }
 
+  private static boolean sInitialized;
   private String file;
+
+  @Before
+  public void setUp() {
+    if (!sInitialized) {
+      Settings.initialize(RuntimeEnvironment.application);
+      EhDB.initialize(RuntimeEnvironment.application);
+      sInitialized = true;
+    }
+  }
 
   public GalleryListParserTest(String file) {
     this.file = file;

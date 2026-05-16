@@ -23,9 +23,13 @@ import android.util.Log;
 
 import com.hippo.ehviewer.Analytics;
 import com.hippo.ehviewer.EhApplication;
+import com.hippo.ehviewer.GetText;
+import com.hippo.ehviewer.R;
+import com.hippo.ehviewer.Settings;
 import com.hippo.ehviewer.client.data.userTag.TagPushParam;
 import com.hippo.ehviewer.client.data.userTag.UserTag;
 import com.hippo.ehviewer.client.exception.CancelledException;
+import com.hippo.ehviewer.client.exception.EhException;
 import com.hippo.util.ExceptionUtils;
 import com.hippo.util.IoThreadPoolExecutor;
 import com.hippo.lib.yorozuya.SimpleHandler;
@@ -152,6 +156,9 @@ public class EhClient {
         protected Object doInBackground(Object... params) {
             try {
                 Log.i(TAG, "doInBackground: "+mMethod);
+                if (Settings.getOfflineMode()) {
+                    return new EhException(GetText.getString(R.string.error_offline_mode));
+                }
                 switch (mMethod) {
                     case METHOD_SIGN_IN:
                         return EhEngine.signIn(this, mOkHttpClient, (String) params[0], (String) params[1]);

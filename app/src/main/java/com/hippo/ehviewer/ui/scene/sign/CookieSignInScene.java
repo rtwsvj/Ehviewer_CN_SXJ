@@ -108,10 +108,20 @@ public class CookieSignInScene extends SolidScene implements EditText.OnEditorAc
         // Try to get old version cookie info
         Context context = getEHContext();
         AssertUtils.assertNotNull(context);
+        EhCookieStore store = EhApplication.getEhCookieStore(context);
+        String ipbMemberId = store.getIdentityCookieValue(EhCookieStore.KEY_IPD_MEMBER_ID);
+        String ipbPassHash = store.getIdentityCookieValue(EhCookieStore.KEY_IPD_PASS_HASH);
+        String igneous = store.getIdentityCookieValue(EhCookieStore.KEY_IGNEOUS);
         SharedPreferences sharedPreferences = context.getSharedPreferences("eh_info", 0);
-        String ipbMemberId = sharedPreferences.getString("ipb_member_id", null);
-        String ipbPassHash = sharedPreferences.getString("ipb_pass_hash", null);
-        String igneous = sharedPreferences.getString("igneous", null);
+        if (TextUtils.isEmpty(ipbMemberId)) {
+            ipbMemberId = sharedPreferences.getString("ipb_member_id", null);
+        }
+        if (TextUtils.isEmpty(ipbPassHash)) {
+            ipbPassHash = sharedPreferences.getString("ipb_pass_hash", null);
+        }
+        if (TextUtils.isEmpty(igneous)) {
+            igneous = sharedPreferences.getString("igneous", null);
+        }
         boolean getIt = false;
         if (!TextUtils.isEmpty(ipbMemberId)) {
             mIpbMemberId.setText(ipbMemberId);

@@ -734,6 +734,17 @@ public class Settings {
         return getBoolean(KEY_MEDIA_SCAN, DEFAULT_MEDIA_SCAN);
     }
 
+    public static final String KEY_OFFLINE_MODE = "offline_mode";
+    private static final boolean DEFAULT_OFFLINE_MODE = false;
+
+    public static boolean getOfflineMode() {
+        return getBoolean(KEY_OFFLINE_MODE, DEFAULT_OFFLINE_MODE);
+    }
+
+    public static void putOfflineMode(boolean value) {
+        putBoolean(KEY_OFFLINE_MODE, value);
+    }
+
     private static final String KEY_RECENT_DOWNLOAD_LABEL = "recent_download_label";
     private static final String DEFAULT_RECENT_DOWNLOAD_LABEL = null;
 

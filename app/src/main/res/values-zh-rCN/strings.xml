@@ -580,7 +580,7 @@
     <string name="settings_read_screen_lightness">屏幕亮度</string>
 
     <string name="settings_download">下载</string>
-    <string name="settings_download_download_location">下载路径</string>
+    <string name="settings_download_download_location">本地库路径</string>
     <string name="settings_download_invalid_download_location">无效的下载路径</string>
     <string name="settings_download_cant_get_download_location">无法获取下载路径</string>
     <string name="settings_download_pick_dir_kk">在 KitKat 中您无法把数据写入外置 SD 卡，除非您做了奇怪的事情。不过 &lt;SD card&gt;/Android/data/com.hippo.ehviewer 这个路径比较特殊，是可以写入的。</string>
@@ -603,12 +603,22 @@
     <string name="settings_download_media_scan">允许媒体扫描</string>
     <string name="settings_download_media_scan_summary_on">请避免他人翻看你的图库应用</string>
     <string name="settings_download_media_scan_summary_off">大多数图库应用将不会显示下载目录中的图片</string>
+    <string name="settings_download_offline_mode">离线模式</string>
+    <string name="settings_download_offline_mode_summary_on">仅使用本地库内容</string>
+    <string name="settings_download_offline_mode_summary_off">允许在线浏览和下载</string>
+    <string name="error_offline_mode">离线模式已开启，此操作只能使用本地库文件。</string>
     <string name="settings_download_restore_download_items">恢复下载项</string>
     <string name="settings_download_restore_download_items_summary">恢复下载目录里的所有下载项</string>
     <string name="settings_download_restoring">恢复中</string>
     <string name="settings_download_restore_not_found">未找到可恢复下载项</string>
     <string name="settings_download_restore_failed">恢复失败</string>
     <string name="settings_download_restore_successfully">成功恢复 %d 项</string>
+    <string name="settings_download_export_library_zip">导出本地库 zip</string>
+    <string name="settings_download_export_library_zip_summary">将已下载作品和 manifest 打包为一个 zip</string>
+    <string name="settings_download_export_library_cbz">将已下载作品导出为 CBZ</string>
+    <string name="settings_download_export_library_cbz_summary">为每个已下载作品创建一个 CBZ 文件</string>
+    <string name="settings_download_export_library_running">正在导出本地库</string>
+    <string name="settings_download_export_library_done">已导出 %1$d 个作品到 %2$s</string>
     <string name="settings_download_clean_redundancy">清理下载冗余</string>
     <string name="settings_download_clean_redundancy_summary">清理下载目录中不在下载列表里的图片文件</string>
     <string name="settings_download_clean_redundancy_no_redundancy">未发现冗余</string>

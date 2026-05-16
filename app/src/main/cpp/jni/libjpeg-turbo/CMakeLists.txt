@@ -54,6 +54,12 @@ set(LIBJPEG_TURBO_INCLUDES
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/libjpeg-turbo
 )
+set(EHVIEWER_CAN_BUILD_X86_SIMD TRUE)
+if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+  # The Android NDK ships yasm as an x86_64-only macOS binary, so Apple Silicon hosts
+  # without Rosetta must use the generic libjpeg-turbo implementation for x86 ABIs.
+  set(EHVIEWER_CAN_BUILD_X86_SIMD FALSE)
+endif ()
 
 if (${ANDROID_ABI} STREQUAL "armeabi-v7a")
 
@@ -75,7 +81,7 @@ elseif (${ANDROID_ABI} STREQUAL "arm64-v8a")
       libjpeg-turbo/simd/arm64/jsimd_neon.S
   )
 
-elseif (${ANDROID_ABI} STREQUAL "x86")
+elseif (${ANDROID_ABI} STREQUAL "x86" AND EHVIEWER_CAN_BUILD_X86_SIMD)
 
   enable_language(ASM_NASM)
 
@@ -142,7 +148,7 @@ elseif (${ANDROID_ABI} STREQUAL "x86")
   endif()
   set(CMAKE_ASM_NASM_FLAGS "-DELF -DPIC -I${NASM_INC_DIR} -I${I386_INC_DIR}")
 
-elseif (${ANDROID_ABI} STREQUAL "x86_64")
+elseif (${ANDROID_ABI} STREQUAL "x86_64" AND EHVIEWER_CAN_BUILD_X86_SIMD)
 
   enable_language(ASM_NASM)
 

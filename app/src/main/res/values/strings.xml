@@ -668,7 +668,7 @@
     <string name="settings_read_screen_lightness">Screen lightness</string>
 
     <string name="settings_download">Download</string>
-    <string name="settings_download_download_location">Download location</string>
+    <string name="settings_download_download_location">Local library path</string>
     <string name="settings_download_invalid_download_location">Invalid download location</string>
     <string name="settings_download_cant_get_download_location">Can\'t get download location</string>
     <string name="settings_download_pick_dir_kk">On Android 4.4+, apps can\'t write any data on your external SD card, unless you root the system and apply a patch. But &lt;SD card&gt;/Android/data/com.hippo.ehviewer is an exception. It is writable for this app.</string>
@@ -678,6 +678,10 @@
     <string name="settings_download_media_scan">Allow media scan</string>
     <string name="settings_download_media_scan_summary_on">Please hide your gallery apps away from other people</string>
     <string name="settings_download_media_scan_summary_off">Most gallery apps will ignore pictures in the download path</string>
+    <string name="settings_download_offline_mode">Offline mode</string>
+    <string name="settings_download_offline_mode_summary_on">Only local library content is available</string>
+    <string name="settings_download_offline_mode_summary_off">Online browsing and downloads are available</string>
+    <string name="error_offline_mode">Offline mode is enabled. This action can only use local library files.</string>
     <string name="settings_download_multi_thread_download">Multi-threaded download</string>
     <string name="settings_download_multi_thread_download_summary">Up to %s images</string>
     <string name="settings_download_preload_image">Preload image</string>
@@ -697,6 +701,12 @@
     <string name="settings_download_restore_not_found">Not found download items to restore</string>
     <string name="settings_download_restore_failed">Restore failed</string>
     <string name="settings_download_restore_successfully">Restore %d items successfully</string>
+    <string name="settings_download_export_library_zip">Export local library zip</string>
+    <string name="settings_download_export_library_zip_summary">Package downloaded galleries and manifests into one zip</string>
+    <string name="settings_download_export_library_cbz">Export downloaded galleries as CBZ</string>
+    <string name="settings_download_export_library_cbz_summary">Create one CBZ file for each downloaded gallery</string>
+    <string name="settings_download_export_library_running">Exporting local library</string>
+    <string name="settings_download_export_library_done">Exported %1$d galleries to %2$s</string>
     <string name="settings_download_clean_redundancy">Clear download redundancy</string>
     <string name="settings_download_clean_redundancy_summary">Remove gallery images which are not in download list but in download location</string>
     <string name="settings_download_clean_redundancy_no_redundancy">No redundancy</string>
