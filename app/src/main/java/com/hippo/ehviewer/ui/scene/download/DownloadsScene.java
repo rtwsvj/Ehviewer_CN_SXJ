@@ -95,6 +95,7 @@ import com.hippo.ehviewer.spider.SpiderInfo;
 import com.hippo.ehviewer.sync.DownloadListInfosExecutor;
 import com.hippo.ehviewer.sync.DownloadSpiderInfoExecutor;
 import com.hippo.ehviewer.ui.GalleryActivity;
+import com.hippo.ehviewer.ui.LibraryExportTask;
 import com.hippo.ehviewer.ui.MainActivity;
 import com.hippo.ehviewer.ui.annotation.ViewLifeCircle;
 import com.hippo.ehviewer.ui.scene.ToolbarScene;
@@ -603,7 +604,7 @@ public class DownloadsScene extends ToolbarScene
         mFabLayout.setOnExpandListener(this);
         mActionFabDrawable = new AddDeleteDrawable(context, resources.getColor(R.color.primary_drawable_dark, null));
         mFabLayout.getPrimaryFab().setImageDrawable(mActionFabDrawable);
-        FloatingActionButton fab = mFabLayout.getSecondaryFabAt(6);
+        FloatingActionButton fab = mFabLayout.getSecondaryFabAt(7);
         if (DRAG_ENABLE) {
             fab.setImageDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.v_mobile_hand_left_x24, context.getTheme()));
         } else {
@@ -1077,7 +1078,7 @@ public class DownloadsScene extends ToolbarScene
             LongList gidList = null;
             List<DownloadInfo> downloadInfoList = null;
             boolean collectGid = position == 1 || position == 2 || position == 3; // Start, Stop, Delete
-            boolean collectDownloadInfo = position == 3 || position == 4; // Delete or Move
+            boolean collectDownloadInfo = position == 3 || position == 4 || position == 5; // Delete, Move, Export
             if (collectGid) {
                 gidList = new LongList();
             }
@@ -1157,14 +1158,22 @@ public class DownloadsScene extends ToolbarScene
                             .show();
                     break;
                 }
-                case 5:
+                case 5: { // Export selected zip
+                    if (downloadInfoList.isEmpty()) {
+                        break;
+                    }
+                    LibraryExportTask.exportLibraryZip(context, downloadInfoList);
+                    recyclerView.outOfCustomChoiceMode();
+                    break;
+                }
+                case 6:
                     if (mList == null || mList.isEmpty()) {
                         return;
                     }
                     onClickPrimaryFab(mFabLayout, null);
                     viewRandom();
                     break;
-                case 6:
+                case 7:
                     setDragEnable(fab);
                     break;
             }

@@ -705,6 +705,7 @@
     <string name="settings_download_export_library_zip_summary">Package downloaded galleries and manifests into one zip</string>
     <string name="settings_download_export_library_cbz">Export downloaded galleries as CBZ</string>
     <string name="settings_download_export_library_cbz_summary">Create one CBZ file for each downloaded gallery</string>
+    <string name="settings_download_export_single_cbz">Export CBZ</string>
     <string name="settings_download_export_library_running">Exporting local library</string>
     <string name="settings_download_export_library_done">Exported %1$d galleries to %2$s</string>
     <string name="settings_download_clean_redundancy">Clear download redundancy</string>

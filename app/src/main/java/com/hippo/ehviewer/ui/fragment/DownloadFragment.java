@@ -35,11 +35,10 @@ import com.hippo.ehviewer.EhDB;
 import com.hippo.ehviewer.R;
 import com.hippo.ehviewer.Settings;
 import com.hippo.ehviewer.client.data.GalleryInfo;
-import com.hippo.ehviewer.dao.DownloadInfo;
 import com.hippo.ehviewer.download.DownloadManager;
-import com.hippo.ehviewer.library.LibraryExporter;
 import com.hippo.ehviewer.ui.CommonOperations;
 import com.hippo.ehviewer.ui.DirPickerActivity;
+import com.hippo.ehviewer.ui.LibraryExportTask;
 import com.hippo.unifile.UniFile;
 import com.hippo.util.ExceptionUtils;
 import com.hippo.yorozuya.IOUtils;
@@ -283,11 +282,17 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
     }
 
     private void exportLibraryZip() {
-        new ExportLibraryTask(this, ExportLibraryTask.MODE_LIBRARY_ZIP).execute();
+        if (getActivity() != null) {
+            LibraryExportTask.exportLibraryZip(getActivity(),
+                    EhApplication.getDownloadManager(getActivity()).getAllDownloadInfoList());
+        }
     }
 
     private void exportLibraryCbz() {
-        new ExportLibraryTask(this, ExportLibraryTask.MODE_CBZ_FILES).execute();
+        if (getActivity() != null) {
+            LibraryExportTask.exportCbzFiles(getActivity(),
+                    EhApplication.getDownloadManager(getActivity()).getAllDownloadInfoList());
+        }
     }
 
     @Override
@@ -475,112 +480,6 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
                 Toast.makeText(fragment.getActivity(), fragment.getString(R.string.settings_download_import_succeed, result), Toast.LENGTH_LONG).show();
             } else {
                 Toast.makeText(fragment.getActivity(), R.string.settings_download_import_failed, Toast.LENGTH_SHORT).show();
-            }
-        }
-    }
-
-    private static class ExportLibraryTask extends AsyncTask<Void, Void, Integer> {
-
-        static final int MODE_LIBRARY_ZIP = 0;
-        static final int MODE_CBZ_FILES = 1;
-
-        private final WeakReference<DownloadFragment> mFragment;
-        private final int mMode;
-        private ProgressDialog mProgressDialog;
-        private String mOutput;
-
-        ExportLibraryTask(DownloadFragment fragment, int mode) {
-            mFragment = new WeakReference<>(fragment);
-            mMode = mode;
-        }
-
-        @Override
-        protected void onPreExecute() {
-            DownloadFragment fragment = mFragment.get();
-            if (fragment == null || fragment.getActivity() == null) {
-                return;
-            }
-            mProgressDialog = new ProgressDialog(fragment.getActivity());
-            mProgressDialog.setTitle(R.string.settings_download_export_library_running);
-            mProgressDialog.setIndeterminate(true);
-            mProgressDialog.setCancelable(false);
-            mProgressDialog.show();
-        }
-
-        @Override
-        protected Integer doInBackground(Void... voids) {
-            DownloadFragment fragment = mFragment.get();
-            if (fragment == null || fragment.getActivity() == null) {
-                return 0;
-            }
-            UniFile dir = Settings.getDownloadLocation();
-            if (dir == null || !dir.isDirectory()) {
-                return 0;
-            }
-
-            List<DownloadInfo> allDownloads = new ArrayList<>(
-                    EhApplication.getDownloadManager(fragment.requireActivity()).getAllDownloadInfoList());
-            List<DownloadInfo> finishedDownloads = new ArrayList<>();
-            for (DownloadInfo info : allDownloads) {
-                if (info.state == DownloadInfo.STATE_FINISH) {
-                    finishedDownloads.add(info);
-                }
-            }
-            if (finishedDownloads.isEmpty()) {
-                return 0;
-            }
-
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss", Locale.US);
-            String timestamp = sdf.format(new Date());
-            try {
-                if (mMode == MODE_LIBRARY_ZIP) {
-                    String filename = "ehviewer-library-" + timestamp + ".zip";
-                    UniFile outputFile = dir.createFile(filename);
-                    if (outputFile == null) {
-                        return 0;
-                    }
-                    mOutput = outputFile.getUri().toString();
-                    return LibraryExporter.exportLibraryZip(finishedDownloads, outputFile);
-                } else {
-                    String dirname = "ehviewer-cbz-" + timestamp;
-                    UniFile outputDir = dir.createDirectory(dirname);
-                    if (outputDir == null) {
-                        return 0;
-                    }
-                    mOutput = outputDir.getUri().toString();
-                    return LibraryExporter.exportCbzFiles(finishedDownloads, outputDir);
-                }
-            } catch (IOException e) {
-                return 0;
-            }
-        }
-
-        @Override
-        protected void onPostExecute(Integer result) {
-            DownloadFragment fragment = mFragment.get();
-            if (mProgressDialog != null) {
-                if (fragment != null && fragment.isAdded() && fragment.getActivity() != null) {
-                    try {
-                        if (mProgressDialog.isShowing()) {
-                            mProgressDialog.dismiss();
-                        }
-                    } catch (IllegalArgumentException e) {
-                        ExceptionUtils.throwIfFatal(e);
-                    }
-                }
-                mProgressDialog = null;
-            }
-            if (fragment == null || fragment.getActivity() == null) {
-                return;
-            }
-            if (result > 0 && mOutput != null) {
-                Toast.makeText(fragment.getActivity(),
-                        fragment.getString(R.string.settings_download_export_library_done, result, mOutput),
-                        Toast.LENGTH_LONG).show();
-            } else {
-                Toast.makeText(fragment.getActivity(),
-                        R.string.settings_download_export_failed,
-                        Toast.LENGTH_SHORT).show();
             }
         }
     }

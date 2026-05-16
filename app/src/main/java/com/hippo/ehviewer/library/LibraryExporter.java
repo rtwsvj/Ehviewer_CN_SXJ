@@ -99,17 +99,29 @@ public final class LibraryExporter {
             @NonNull UniFile outputDir) throws IOException {
         int exported = 0;
         for (DownloadInfo info : galleries) {
-            UniFile dir = SpiderDen.getGalleryDownloadDir(info);
-            if (dir == null || !dir.isDirectory()) {
-                continue;
-            }
-            String filename = safeFilename(String.format(Locale.US, "%d-%s.cbz", info.gid, info.token));
-            UniFile outputFile = outputDir.createFile(filename);
-            if (outputFile != null && exportGalleryCbz(info, outputFile)) {
+            if (exportGalleryCbzToDirectory(info, outputDir) != null) {
                 exported++;
             }
         }
         return exported;
+    }
+
+    public static UniFile exportGalleryCbzToDirectory(@NonNull DownloadInfo info,
+            @NonNull UniFile outputDir) throws IOException {
+        UniFile dir = SpiderDen.getGalleryDownloadDir(info);
+        if (dir == null || !dir.isDirectory()) {
+            return null;
+        }
+        String filename = getCbzFilename(info);
+        UniFile outputFile = outputDir.createFile(filename);
+        if (outputFile != null && exportGalleryCbz(info, outputFile)) {
+            return outputFile;
+        }
+        return null;
+    }
+
+    public static String getCbzFilename(@NonNull DownloadInfo info) {
+        return safeFilename(String.format(Locale.US, "%d-%s.cbz", info.gid, info.token));
     }
 
     private static void addDirectory(ZipOutputStream zipOutputStream, UniFile dir,

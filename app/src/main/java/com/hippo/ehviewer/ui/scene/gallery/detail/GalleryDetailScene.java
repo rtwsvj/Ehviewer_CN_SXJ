@@ -89,6 +89,7 @@ import com.hippo.ehviewer.dao.Filter;
 import com.hippo.ehviewer.spider.SpiderQueen;
 import com.hippo.ehviewer.ui.CommonOperations;
 import com.hippo.ehviewer.ui.GalleryActivity;
+import com.hippo.ehviewer.ui.LibraryExportTask;
 import com.hippo.ehviewer.ui.MainActivity;
 import com.hippo.ehviewer.ui.annotation.WholeLifeCircle;
 import com.hippo.ehviewer.ui.dialog.ArchiverDownloadDialog;
@@ -1340,9 +1341,42 @@ public class GalleryDetailScene extends BaseScene implements View.OnClickListene
                         request();
                     }
                     break;
+                case R.id.action_export_cbz:
+                    exportCurrentGalleryCbz();
+                    break;
             }
             return true;
         });
+    }
+
+    private void updatePopMenu() {
+        if (mPopupMenu == null) {
+            return;
+        }
+        boolean canExport = false;
+        GalleryInfo galleryInfo = getGalleryInfo();
+        Context context = getEHContext();
+        if (galleryInfo != null && context != null) {
+            canExport = EhApplication.getDownloadManager(context)
+                    .getDownloadState(galleryInfo.gid) == DownloadInfo.STATE_FINISH;
+        }
+        mPopupMenu.getMenu().findItem(R.id.action_export_cbz).setVisible(canExport);
+    }
+
+    private void exportCurrentGalleryCbz() {
+        Context context = getEHContext();
+        GalleryInfo galleryInfo = getGalleryInfo();
+        if (context == null || galleryInfo == null) {
+            return;
+        }
+        DownloadInfo downloadInfo = EhApplication.getDownloadManager(context)
+                .getDownloadInfo(galleryInfo.gid);
+        if (downloadInfo == null) {
+            Toast.makeText(context, R.string.settings_download_export_no_items, Toast.LENGTH_SHORT)
+                    .show();
+            return;
+        }
+        LibraryExportTask.exportSingleCbz(context, downloadInfo);
     }
 
     @Nullable
@@ -1436,6 +1470,7 @@ public class GalleryDetailScene extends BaseScene implements View.OnClickListene
         } else if (mOtherActions == v) {
             ensurePopMenu();
             if (mPopupMenu != null) {
+                updatePopMenu();
                 mPopupMenu.show();
             }
         } else if (mUploader == v) {
