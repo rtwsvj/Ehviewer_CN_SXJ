@@ -45,7 +45,9 @@ import com.hippo.lib.yorozuya.Utilities;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 public final class SpiderDen {
 
@@ -82,6 +84,10 @@ public final class SpiderDen {
     }
 
     public static UniFile getGalleryDownloadDir(GalleryInfo galleryInfo) {
+        return getGalleryDownloadDir(galleryInfo, null);
+    }
+
+    public static UniFile getGalleryDownloadDir(GalleryInfo galleryInfo, @Nullable DownloadDirIndex downloadDirIndex) {
         UniFile dir = Settings.getDownloadLocation();
         if (dir != null) {
             // Read from DB
@@ -94,29 +100,34 @@ public final class SpiderDen {
 
             // Find it
             if (null == dirname) {
-                try {
-                    UniFile[] files = dir.listFiles(new StartWithFilenameFilter(galleryInfo.gid + "-"));
-                    if (null != files) {
-                        // Get max-length-name dir
-                        int maxLength = -1;
-                        for (UniFile file : files) {
-                            if (file.isDirectory()) {
-                                String name = file.getName();
-                                int length = name.length();
-                                if (length > maxLength) {
-                                    maxLength = length;
-                                    dirname = name;
+                if (downloadDirIndex != null) {
+                    dirname = downloadDirIndex.get(galleryInfo.gid);
+                }
+                if (null == dirname) {
+                    try {
+                        UniFile[] files = dir.listFiles(new StartWithFilenameFilter(galleryInfo.gid + "-"));
+                        if (null != files) {
+                            // Get max-length-name dir
+                            int maxLength = -1;
+                            for (UniFile file : files) {
+                                if (file.isDirectory()) {
+                                    String name = file.getName();
+                                    int length = name.length();
+                                    if (length > maxLength) {
+                                        maxLength = length;
+                                        dirname = name;
+                                    }
                                 }
                             }
                         }
-                        if (null != dirname) {
-                            EhDB.putDownloadDirname(galleryInfo.gid, dirname);
-                        }
+                    } catch (Exception e) {
+                        // Failed to list files, maybe storage is unavailable or permission lost
+                        // Continue to create new directory
+                        android.util.Log.w("SpiderDen", "Failed to list files in download directory", e);
                     }
-                } catch (Exception e) {
-                    // Failed to list files, maybe storage is unavailable or permission lost
-                    // Continue to create new directory
-                    android.util.Log.w("SpiderDen", "Failed to list files in download directory", e);
+                }
+                if (null != dirname) {
+                    EhDB.putDownloadDirname(galleryInfo.gid, dirname);
                 }
             }
 
@@ -129,6 +140,71 @@ public final class SpiderDen {
             return dir.subFile(dirname);
         } else {
             return null;
+        }
+    }
+
+    @Nullable
+    public static DownloadDirIndex buildDownloadDirIndex() {
+        UniFile dir = Settings.getDownloadLocation();
+        if (dir == null) {
+            return null;
+        }
+        return DownloadDirIndex.create(dir);
+    }
+
+    public static class DownloadDirIndex {
+        private final Map<Long, String> dirnameMap = new HashMap<>();
+
+        private DownloadDirIndex() {
+        }
+
+        @Nullable
+        static DownloadDirIndex create(UniFile dir) {
+            DownloadDirIndex index = new DownloadDirIndex();
+            try {
+                UniFile[] files = dir.listFiles();
+                if (files == null) {
+                    return index;
+                }
+                for (UniFile file : files) {
+                    if (!file.isDirectory()) {
+                        continue;
+                    }
+                    String name = file.getName();
+                    Long gid = parseGid(name);
+                    if (gid == null) {
+                        continue;
+                    }
+                    String existing = index.dirnameMap.get(gid);
+                    if (existing == null || name.length() > existing.length()) {
+                        index.dirnameMap.put(gid, name);
+                    }
+                }
+            } catch (Exception e) {
+                android.util.Log.w("SpiderDen", "Failed to index download directory", e);
+            }
+            return index;
+        }
+
+        @Nullable
+        String get(long gid) {
+            return dirnameMap.get(gid);
+        }
+
+        @Nullable
+        private static Long parseGid(String name) {
+            if (name == null) {
+                return null;
+            }
+            int index = name.indexOf('-');
+            if (index <= 0) {
+                return null;
+            }
+            try {
+                return Long.parseLong(name.substring(0, index));
+            } catch (NumberFormatException e) {
+                return null;
+            }
         }
     }
 

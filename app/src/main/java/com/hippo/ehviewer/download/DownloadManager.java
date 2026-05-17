@@ -54,10 +54,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class DownloadManager implements SpiderQueen.OnSpiderListener {
 
@@ -738,28 +740,20 @@ public class DownloadManager implements SpiderQueen.OnSpiderListener {
     }
 
     public void deleteRangeDownload(LongList gidList) {
-        stopRangeDownloadInternal(gidList);
+        Set<Long> gids = toGidSet(gidList);
+        stopRangeDownloadInternal(gids);
 
-        for (int i = 0, n = gidList.size(); i < n; i++) {
-            long gid = gidList.get(i);
-            DownloadInfo info = mAllInfoMap.get(gid);
-            if (null == info) {
-                Log.d(TAG, "Can't get download info with gid: " + gid);
-                continue;
+        for (Iterator<DownloadInfo> iterator = mAllInfoList.iterator(); iterator.hasNext(); ) {
+            DownloadInfo info = iterator.next();
+            if (gids.contains(info.gid)) {
+                EhDB.removeDownloadInfo(info.gid);
+                iterator.remove();
+                mAllInfoMap.remove(info.gid);
             }
-
-            // Remove from DB
-            EhDB.removeDownloadInfo(info.gid);
-
-            // Remove from all info map
-            mAllInfoList.remove(info);
-            mAllInfoMap.remove(info.gid);
-
-            // Remove from label list
-            LinkedList<DownloadInfo> list = getInfoListForLabel(info.label);
-            if (list != null) {
-                list.remove(info);
-            }
+        }
+        removeDownloadsFromList(mDefaultInfoList, gids);
+        for (LinkedList<DownloadInfo> list : mMap.values()) {
+            removeDownloadsFromList(list, gids);
         }
 
         // Update listener
@@ -779,6 +773,7 @@ public class DownloadManager implements SpiderQueen.OnSpiderListener {
             @Override
             protected Void doInBackground(Void... voids) {
                 GalleryInfo galleryInfo = new GalleryInfo();
+                SpiderDen.DownloadDirIndex downloadDirIndex = SpiderDen.buildDownloadDirIndex();
                 for (DownloadInfo downloadInfo : list) {
                     galleryInfo.gid = downloadInfo.gid;
                     galleryInfo.token = downloadInfo.token;
@@ -789,7 +784,7 @@ public class DownloadManager implements SpiderQueen.OnSpiderListener {
                     galleryInfo.uploader = downloadInfo.uploader;
                     galleryInfo.rating = downloadInfo.rating;
 
-                    UniFile downloadDir = SpiderDen.getGalleryDownloadDir(galleryInfo);
+                    UniFile downloadDir = SpiderDen.getGalleryDownloadDir(galleryInfo, downloadDirIndex);
                     if (downloadDir == null) {
                         continue;
                     }
@@ -871,29 +866,45 @@ public class DownloadManager implements SpiderQueen.OnSpiderListener {
     // Update in DB
     // Update mDownloadListener
     private void stopRangeDownloadInternal(LongList gidList) {
-        // Two way
-        if (gidList.size() < mWaitList.size()) {
-            for (int i = 0, n = gidList.size(); i < n; i++) {
-                stopDownloadInternal(gidList.get(i));
-            }
-        } else {
-            // Check current task
-            if (mCurrentTask != null && gidList.contains(mCurrentTask.gid)) {
-                // Stop current
-                stopCurrentDownloadInternal();
-            }
+        stopRangeDownloadInternal(toGidSet(gidList));
+    }
 
-            // Check all in wait list
-            for (Iterator<DownloadInfo> iterator = mWaitList.iterator(); iterator.hasNext(); ) {
-                DownloadInfo info = iterator.next();
-                if (gidList.contains(info.gid)) {
-                    // Remove from wait list
-                    iterator.remove();
-                    // Update state
-                    info.state = DownloadInfo.STATE_NONE;
-                    // Update in DB
-                    EhDB.putDownloadInfo(info);
-                }
+    private void stopRangeDownloadInternal(Set<Long> gidSet) {
+        if (gidSet.isEmpty()) {
+            return;
+        }
+        // Check current task
+        if (mCurrentTask != null && gidSet.contains(mCurrentTask.gid)) {
+            // Stop current
+            stopCurrentDownloadInternal();
+        }
+
+        // Check all in wait list
+        for (Iterator<DownloadInfo> iterator = mWaitList.iterator(); iterator.hasNext(); ) {
+            DownloadInfo info = iterator.next();
+            if (gidSet.contains(info.gid)) {
+                // Remove from wait list
+                iterator.remove();
+                // Update state
+                info.state = DownloadInfo.STATE_NONE;
+                // Update in DB
+                EhDB.putDownloadInfo(info);
+            }
+        }
+    }
+
+    private static Set<Long> toGidSet(LongList gidList) {
+        Set<Long> gids = new HashSet<>();
+        for (int i = 0, n = gidList.size(); i < n; i++) {
+            gids.add(gidList.get(i));
+        }
+        return gids;
+    }
+
+    private static void removeDownloadsFromList(List<DownloadInfo> list, Set<Long> gids) {
+        for (Iterator<DownloadInfo> iterator = list.iterator(); iterator.hasNext(); ) {
+            if (gids.contains(iterator.next().gid)) {
+                iterator.remove();
             }
         }
     }

@@ -47,11 +47,12 @@ public final class LibraryExporter {
         int exported = 0;
         OutputStream outputStream = null;
         ZipOutputStream zipOutputStream = null;
+        SpiderDen.DownloadDirIndex downloadDirIndex = SpiderDen.buildDownloadDirIndex();
         try {
             outputStream = outputFile.openOutputStream();
             zipOutputStream = new ZipOutputStream(outputStream);
             for (DownloadInfo info : galleries) {
-                UniFile dir = SpiderDen.getGalleryDownloadDir(info);
+                UniFile dir = SpiderDen.getGalleryDownloadDir(info, downloadDirIndex);
                 if (dir == null || !dir.isDirectory()) {
                     continue;
                 }
@@ -72,7 +73,12 @@ public final class LibraryExporter {
 
     public static boolean exportGalleryCbz(@NonNull DownloadInfo info,
             @NonNull UniFile outputFile) throws IOException {
-        UniFile dir = SpiderDen.getGalleryDownloadDir(info);
+        return exportGalleryCbz(info, outputFile, null);
+    }
+
+    private static boolean exportGalleryCbz(@NonNull DownloadInfo info,
+            @NonNull UniFile outputFile, SpiderDen.DownloadDirIndex downloadDirIndex) throws IOException {
+        UniFile dir = SpiderDen.getGalleryDownloadDir(info, downloadDirIndex);
         if (dir == null || !dir.isDirectory()) {
             return false;
         }
@@ -98,8 +104,9 @@ public final class LibraryExporter {
     public static int exportCbzFiles(@NonNull List<DownloadInfo> galleries,
             @NonNull UniFile outputDir) throws IOException {
         int exported = 0;
+        SpiderDen.DownloadDirIndex downloadDirIndex = SpiderDen.buildDownloadDirIndex();
         for (DownloadInfo info : galleries) {
-            if (exportGalleryCbzToDirectory(info, outputDir) != null) {
+            if (exportGalleryCbzToDirectory(info, outputDir, downloadDirIndex) != null) {
                 exported++;
             }
         }
@@ -108,13 +115,18 @@ public final class LibraryExporter {
 
     public static UniFile exportGalleryCbzToDirectory(@NonNull DownloadInfo info,
             @NonNull UniFile outputDir) throws IOException {
-        UniFile dir = SpiderDen.getGalleryDownloadDir(info);
+        return exportGalleryCbzToDirectory(info, outputDir, null);
+    }
+
+    private static UniFile exportGalleryCbzToDirectory(@NonNull DownloadInfo info,
+            @NonNull UniFile outputDir, SpiderDen.DownloadDirIndex downloadDirIndex) throws IOException {
+        UniFile dir = SpiderDen.getGalleryDownloadDir(info, downloadDirIndex);
         if (dir == null || !dir.isDirectory()) {
             return null;
         }
         String filename = getCbzFilename(info);
         UniFile outputFile = outputDir.createFile(filename);
-        if (outputFile != null && exportGalleryCbz(info, outputFile)) {
+        if (outputFile != null && exportGalleryCbz(info, outputFile, downloadDirIndex)) {
             return outputFile;
         }
         return null;

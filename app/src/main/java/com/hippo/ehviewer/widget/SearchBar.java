@@ -25,6 +25,8 @@ import android.graphics.Canvas;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.Parcelable;
 import android.text.Editable;
 import android.text.TextUtils;
@@ -66,6 +68,7 @@ public class SearchBar extends CardView implements View.OnClickListener,
     private static final String STATE_KEY_STATE = "state";
 
     private static final long ANIMATE_TIME = 300L;
+    private static final long SUGGESTION_DEBOUNCE_MS = 150L;
 
     public static final int STATE_NORMAL = 0;
     public static final int STATE_SEARCH = 1;
@@ -104,6 +107,8 @@ public class SearchBar extends CardView implements View.OnClickListener,
     private boolean showTranslation;
 
     private boolean isComeFromDownload = false;
+    private final Handler mSuggestionHandler = new Handler(Looper.getMainLooper());
+    private final Runnable mUpdateSuggestionsRunnable = this::updateSuggestions;
 
     public SearchBar(Context context) {
         super(context);
@@ -167,6 +172,11 @@ public class SearchBar extends CardView implements View.OnClickListener,
 
     private void updateSuggestions() {
         updateSuggestions(true);
+    }
+
+    private void scheduleUpdateSuggestions() {
+        mSuggestionHandler.removeCallbacks(mUpdateSuggestionsRunnable);
+        mSuggestionHandler.postDelayed(mUpdateSuggestionsRunnable, SUGGESTION_DEBOUNCE_MS);
     }
 
     private void updateSuggestions(boolean scrollToTop) {
@@ -547,7 +557,13 @@ public class SearchBar extends CardView implements View.OnClickListener,
 
     @Override
     public void afterTextChanged(Editable s) {
-        updateSuggestions();
+        scheduleUpdateSuggestions();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        mSuggestionHandler.removeCallbacks(mUpdateSuggestionsRunnable);
+        super.onDetachedFromWindow();
     }
 
     @Override

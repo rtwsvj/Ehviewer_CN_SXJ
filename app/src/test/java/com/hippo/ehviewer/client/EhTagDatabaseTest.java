@@ -19,8 +19,14 @@ package com.hippo.ehviewer.client;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
+import android.util.Pair;
+
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.List;
+import okio.Buffer;
 import okio.BufferedSource;
 import okio.Okio;
 import org.junit.Test;
@@ -50,5 +56,63 @@ public class EhTagDatabaseTest {
     assertEquals("123", db.getTranslation("abc"));
     assertEquals("1234", db.getTranslation("abcd"));
     assertNull(db.getTranslation("21"));
+  }
+
+  @Test
+  public void suggestUsesNamespaceBucketAndKeepsReturnShape() throws IOException {
+    EhTagDatabase db = createDatabase(
+        entry("f:apple", "女苹果"),
+        entry("m:apple", "男苹果"),
+        entry("f:banana", "女香蕉"));
+
+    List<Pair<String, String>> suggestions = db.suggest("female:a");
+
+    assertEquals(1, suggestions.size());
+    assertEquals("女苹果", suggestions.get(0).first);
+    assertEquals("female:apple", suggestions.get(0).second);
+  }
+
+  @Test
+  public void suggestIsCaseInsensitiveAndPreservesOrderLimit() throws IOException {
+    Entry[] entries = new Entry[45];
+    for (int i = 0; i < entries.length; i++) {
+      entries[i] = entry(String.format("Match%02d", i), "翻译" + i);
+    }
+    EhTagDatabase db = createDatabase(entries);
+
+    List<Pair<String, String>> suggestions = db.suggest("match");
+
+    assertEquals(40, suggestions.size());
+    assertEquals("Match00", suggestions.get(0).second);
+    assertEquals("Match39", suggestions.get(39).second);
+  }
+
+  private static EhTagDatabase createDatabase(Entry... entries) throws IOException {
+    StringBuilder data = new StringBuilder();
+    for (Entry entry : entries) {
+      data.append(entry.english)
+          .append('\r')
+          .append(Base64.getEncoder().encodeToString(entry.chinese.getBytes(StandardCharsets.UTF_8)))
+          .append('\n');
+    }
+    byte[] bytes = data.toString().getBytes(StandardCharsets.UTF_8);
+    Buffer buffer = new Buffer();
+    buffer.writeInt(bytes.length);
+    buffer.write(bytes);
+    return new EhTagDatabase("test", buffer);
+  }
+
+  private static Entry entry(String english, String chinese) {
+    return new Entry(english, chinese);
+  }
+
+  private static class Entry {
+    final String english;
+    final String chinese;
+
+    Entry(String english, String chinese) {
+      this.english = english;
+      this.chinese = chinese;
+    }
   }
 }

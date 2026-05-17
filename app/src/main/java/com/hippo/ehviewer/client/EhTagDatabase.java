@@ -45,6 +45,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -62,6 +63,8 @@ public class EhTagDatabase {
     private final String name;
     private final byte[] tags;
     private final List<Tag> tagList;
+    private final List<SearchableTag> searchableTags;
+    private final Map<String, List<SearchableTag>> searchableTagsByNamespace;
 
     public EhTagDatabase(String name, BufferedSource source) throws IOException {
         this.name = name;
@@ -73,6 +76,9 @@ public class EhTagDatabase {
         String sourceString = new String(newByte, StandardCharsets.UTF_8);
 
         tagList = initTagList(sourceString);
+        searchableTags = new ArrayList<>(tagList.size());
+        searchableTagsByNamespace = new HashMap<>();
+        initSearchIndex(tagList);
     }
 
     public String getTranslation(String tag) {
@@ -89,6 +95,42 @@ public class EhTagDatabase {
         }
 
         return initList;
+    }
+
+    private void initSearchIndex(List<Tag> tags) {
+        for (Tag tag : tags) {
+            SearchableTag searchableTag = new SearchableTag(tag);
+            searchableTags.add(searchableTag);
+            String namespace = getNamespace(searchableTag.englishLower);
+            if (namespace != null) {
+                addSearchableTag(namespace, searchableTag);
+                String prefix = NAMESPACE_TO_PREFIX.get(namespace);
+                if (prefix != null && prefix.endsWith(":")) {
+                    addSearchableTag(prefix.substring(0, prefix.length() - 1), searchableTag);
+                }
+            }
+        }
+    }
+
+    private void addSearchableTag(String namespace, SearchableTag tag) {
+        List<SearchableTag> bucket = searchableTagsByNamespace.get(namespace);
+        if (bucket == null) {
+            bucket = new ArrayList<>();
+            searchableTagsByNamespace.put(namespace, bucket);
+        }
+        bucket.add(tag);
+    }
+
+    @Nullable
+    private static String getNamespace(String tag) {
+        if (tag == null) {
+            return null;
+        }
+        int index = tag.indexOf(':');
+        if (index <= 0) {
+            return null;
+        }
+        return tag.substring(0, index);
     }
 
     private Tag parseTag(String source) {
@@ -433,24 +475,47 @@ public class EhTagDatabase {
     }
 
     public List<Pair<String, String>> suggest(String keyword) {
-        return searchTag(tagList, keyword);
+        return searchTag(keyword);
     }
 
-    private List<Pair<String, String>> searchTag(List<Tag> tags, String keyword) {
-
+    private List<Pair<String, String>> searchTag(String keyword) {
         List<Pair<String, String>> searchList = new ArrayList<>();
+        if (keyword == null || keyword.isEmpty()) {
+            return searchList;
+        }
+        String normalized = keyword.toLowerCase(Locale.ROOT);
+        List<SearchableTag> searchSpace = searchableTagsByNamespace.get(getNamespace(normalized));
+        if (searchSpace == null) {
+            searchSpace = searchableTags;
+        }
         int total = 0;
-        for (Tag tag : tags) {
+        for (SearchableTag tag : searchSpace) {
             if (total >= 40) {
                 break;
             }
-            if (tag.involve(keyword)) {
-                searchList.add(new Pair<>(tag.chinese, tag.english));
+            if (tag.involve(normalized)) {
+                searchList.add(new Pair<>(tag.tag.chinese, tag.tag.english));
                 total++;
             }
         }
 
         return searchList;
+    }
+
+    private static class SearchableTag {
+        final Tag tag;
+        final String englishLower;
+        final String chineseLower;
+
+        SearchableTag(Tag tag) {
+            this.tag = tag;
+            englishLower = tag.english != null ? tag.english.toLowerCase(Locale.ROOT) : "";
+            chineseLower = tag.chinese != null ? tag.chinese.toLowerCase(Locale.ROOT) : "";
+        }
+
+        boolean involve(String keyword) {
+            return englishLower.contains(keyword) || chineseLower.contains(keyword);
+        }
     }
     public List<Tag> getTagList() {
         return tagList;

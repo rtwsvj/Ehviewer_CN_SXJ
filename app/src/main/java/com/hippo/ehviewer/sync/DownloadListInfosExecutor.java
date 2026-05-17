@@ -19,8 +19,10 @@ import com.hippo.unifile.UniFile;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -150,9 +152,10 @@ public class DownloadListInfosExecutor {
 
         // 如果是按文件大小排序，先计算所有文件大小
         if (type == R.id.sort_by_file_size_asc || type == R.id.sort_by_file_size_desc) {
+            SpiderDen.DownloadDirIndex downloadDirIndex = SpiderDen.buildDownloadDirIndex();
             for (DownloadInfo info : arr) {
                 if (info.fileSize < 0) { // 未计算过
-                    info.fileSize = calculateDownloadDirSize(info);
+                    info.fileSize = calculateDownloadDirSize(info, downloadDirIndex);
                 }
             }
         }
@@ -357,32 +360,38 @@ public class DownloadListInfosExecutor {
         if (mList == null) {
             return new ArrayList<>();
         }
+        ParsedSearchTag[] searchTags = parseSearchTags(mSearchKey);
+        Map<Long, GalleryTags> galleryTagsByGid = null;
         List<DownloadInfo> cache = new ArrayList<>();
 
         for (int i = 0; i < mList.size(); i++) {
             DownloadInfo info = mList.get(i);
             if (EhUtils.judgeSuitableTitle(info, mSearchKey)) {
                 cache.add(info);
-            } else if (matchTag(mSearchKey, info)) {
-                cache.add(info);
+            } else if (searchTags.length > 0) {
+                if (galleryTagsByGid == null) {
+                    galleryTagsByGid = loadMissingGalleryTags(mList);
+                }
+                if (matchTag(searchTags, info, galleryTagsByGid)) {
+                    cache.add(info);
+                }
             }
         }
 
         return cache;
     }
 
-    private boolean matchTag(String mSearchKey, DownloadInfo info) {
-        ArrayList<String> searchableTags = getSearchableTags(info);
+    private boolean matchTag(ParsedSearchTag[] searchTags, DownloadInfo info, Map<Long, GalleryTags> galleryTagsByGid) {
+        ArrayList<String> searchableTags = getSearchableTags(info, galleryTagsByGid);
         if (searchableTags.isEmpty()) {
             return false;
         }
 
-        String[] searchTags = splitSearchTags(mSearchKey);
         if (searchTags.length == 0) {
             return false;
         }
 
-        for (String searchTag : searchTags) {
+        for (ParsedSearchTag searchTag : searchTags) {
             boolean matched = false;
             for (String tag : searchableTags) {
                 if (matchSingleTag(tag, searchTag)) {
@@ -398,7 +407,7 @@ public class DownloadListInfosExecutor {
         return true;
     }
 
-    private ArrayList<String> getSearchableTags(DownloadInfo info) {
+    private ArrayList<String> getSearchableTags(DownloadInfo info, Map<Long, GalleryTags> galleryTagsByGid) {
         if (info.tgList != null && !info.tgList.isEmpty()) {
             return info.tgList;
         }
@@ -413,7 +422,7 @@ public class DownloadListInfosExecutor {
         }
 
         if (tagList.isEmpty()) {
-            ArrayList<String> dbTags = searchTagList(info.gid);
+            ArrayList<String> dbTags = searchTagList(info.gid, galleryTagsByGid);
             if (dbTags != null && !dbTags.isEmpty()) {
                 tagList.addAll(dbTags);
             }
@@ -421,6 +430,20 @@ public class DownloadListInfosExecutor {
 
         info.tgList = tagList;
         return tagList;
+    }
+
+    private Map<Long, GalleryTags> loadMissingGalleryTags(List<DownloadInfo> list) {
+        ArrayList<Long> gidList = new ArrayList<>();
+        for (DownloadInfo info : list) {
+            if (info == null || (info.tgList != null && !info.tgList.isEmpty()) || info.simpleTags != null) {
+                continue;
+            }
+            gidList.add(info.gid);
+        }
+        if (gidList.isEmpty()) {
+            return new HashMap<>();
+        }
+        return EhDB.queryGalleryTagsMap(gidList);
     }
 
     private static String[] splitSearchTags(String searchKey) {
@@ -443,14 +466,25 @@ public class DownloadListInfosExecutor {
         return tags.toArray(new String[0]);
     }
 
-    private static boolean matchSingleTag(String tag, String searchTag) {
+    private static ParsedSearchTag[] parseSearchTags(String searchKey) {
+        String[] rawTags = splitSearchTags(searchKey);
+        ArrayList<ParsedSearchTag> parsedTags = new ArrayList<>(rawTags.length);
+        for (String rawTag : rawTags) {
+            ParsedSearchTag parsedTag = ParsedSearchTag.parse(rawTag);
+            if (parsedTag != null) {
+                parsedTags.add(parsedTag);
+            }
+        }
+        return parsedTags.toArray(new ParsedSearchTag[0]);
+    }
+
+    private static boolean matchSingleTag(String tag, ParsedSearchTag searchTag) {
         if (tag == null || searchTag == null) {
             return false;
         }
 
         String normalizedTag = tag.trim().toLowerCase(Locale.ROOT);
-        String normalizedSearchTag = searchTag.trim().toLowerCase(Locale.ROOT);
-        if (normalizedTag.isEmpty() || normalizedSearchTag.isEmpty()) {
+        if (normalizedTag.isEmpty()) {
             return false;
         }
 
@@ -458,29 +492,25 @@ public class DownloadListInfosExecutor {
         String tagNamespace = tagIndex >= 0 ? normalizedTag.substring(0, tagIndex) : null;
         String tagName = tagIndex >= 0 ? normalizedTag.substring(tagIndex + 1) : normalizedTag;
 
-        int searchTagIndex = normalizedSearchTag.indexOf(':');
-        String searchNamespace = searchTagIndex >= 0 ? normalizedSearchTag.substring(0, searchTagIndex) : null;
-        String searchName = searchTagIndex >= 0 ? normalizedSearchTag.substring(searchTagIndex + 1) : normalizedSearchTag;
-
-        if (searchNamespace != null && (tagNamespace == null || !tagNamespace.equals(searchNamespace))) {
+        if (searchTag.namespace != null && (tagNamespace == null || !tagNamespace.equals(searchTag.namespace))) {
             return false;
         }
 
-        if (searchName.isEmpty()) {
+        if (searchTag.name.isEmpty()) {
             return false;
         }
 
-        if (tagName.equals(searchName)) {
+        if (tagName.equals(searchTag.name)) {
             return true;
         }
 
         // Search hint is "keyword", so allow contains match on tag name.
-        return tagName.contains(searchName);
+        return tagName.contains(searchTag.name);
     }
 
 
-    private ArrayList<String> searchTagList(long gid) {
-        GalleryTags tags = EhDB.queryGalleryTags(gid);
+    private ArrayList<String> searchTagList(long gid, Map<Long, GalleryTags> galleryTagsByGid) {
+        GalleryTags tags = galleryTagsByGid != null ? galleryTagsByGid.get(gid) : EhDB.queryGalleryTags(gid);
 
         if (tags == null) {
             return null;
@@ -527,9 +557,9 @@ public class DownloadListInfosExecutor {
     /**
      * 计算下载目录的总大小
      */
-    private long calculateDownloadDirSize(DownloadInfo info) {
+    private long calculateDownloadDirSize(DownloadInfo info, SpiderDen.DownloadDirIndex downloadDirIndex) {
         try {
-            UniFile downloadDir = SpiderDen.getGalleryDownloadDir(info);
+            UniFile downloadDir = SpiderDen.getGalleryDownloadDir(info, downloadDirIndex);
             if (downloadDir == null || !downloadDir.isDirectory()) {
                 return -1;
             }
@@ -579,6 +609,34 @@ public class DownloadListInfosExecutor {
             case R.id.misc -> EhConfig.MISC;
             default -> EhUtils.ALL_CATEGORY;
         };
+    }
+
+    private static class ParsedSearchTag {
+        final String namespace;
+        final String name;
+
+        private ParsedSearchTag(String namespace, String name) {
+            this.namespace = namespace;
+            this.name = name;
+        }
+
+        @Nullable
+        static ParsedSearchTag parse(String rawTag) {
+            if (rawTag == null) {
+                return null;
+            }
+            String normalized = rawTag.trim().toLowerCase(Locale.ROOT);
+            if (normalized.isEmpty()) {
+                return null;
+            }
+            int index = normalized.indexOf(':');
+            if (index >= 0) {
+                String namespace = normalized.substring(0, index);
+                String name = normalized.substring(index + 1);
+                return name.isEmpty() ? null : new ParsedSearchTag(namespace, name);
+            }
+            return new ParsedSearchTag(null, normalized);
+        }
     }
 
 }

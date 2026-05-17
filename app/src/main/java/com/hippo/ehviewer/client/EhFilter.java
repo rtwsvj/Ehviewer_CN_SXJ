@@ -23,7 +23,10 @@ import com.hippo.ehviewer.client.data.GalleryInfo;
 import com.hippo.ehviewer.dao.Filter;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 public final class EhFilter {
 
@@ -38,6 +41,11 @@ public final class EhFilter {
     private final List<Filter> mUploaderFilterList = new ArrayList<>();
     private final List<Filter> mTagFilterList = new ArrayList<>();
     private final List<Filter> mTagNamespaceFilterList = new ArrayList<>();
+    private final Set<String> mEnabledUploaderFilters = new HashSet<>();
+    private final Set<String> mEnabledPlainTagFilters = new HashSet<>();
+    private final Set<String> mEnabledAllTagNames = new HashSet<>();
+    private final Set<String> mEnabledFullTagFilters = new HashSet<>();
+    private final Set<String> mEnabledTagNamespaceFilters = new HashSet<>();
 
     private static EhFilter sInstance;
 
@@ -73,6 +81,7 @@ public final class EhFilter {
                     break;
             }
         }
+        rebuildFilterIndexes();
     }
 
     public List<Filter> getTitleFilterList() {
@@ -116,10 +125,12 @@ public final class EhFilter {
                 Log.d(TAG, "Unknown mode: " + filter.mode);
                 break;
         }
+        rebuildFilterIndexes();
     }
 
     public synchronized void triggerFilter(Filter filter) {
         EhDB.triggerFilter(filter);
+        rebuildFilterIndexes();
     }
 
     public synchronized void deleteFilter(Filter filter) {
@@ -142,6 +153,45 @@ public final class EhFilter {
                 Log.d(TAG, "Unknown mode: " + filter.mode);
                 break;
         }
+        rebuildFilterIndexes();
+    }
+
+    private void rebuildFilterIndexes() {
+        mEnabledUploaderFilters.clear();
+        mEnabledPlainTagFilters.clear();
+        mEnabledAllTagNames.clear();
+        mEnabledFullTagFilters.clear();
+        mEnabledTagNamespaceFilters.clear();
+
+        for (Filter filter : mUploaderFilterList) {
+            if (isEnabled(filter) && filter.text != null) {
+                mEnabledUploaderFilters.add(filter.text);
+            }
+        }
+        for (Filter filter : mTagFilterList) {
+            if (!isEnabled(filter) || filter.text == null) {
+                continue;
+            }
+            int index = filter.text.indexOf(':');
+            if (index >= 0) {
+                mEnabledFullTagFilters.add(filter.text);
+                if (index + 1 < filter.text.length()) {
+                    mEnabledAllTagNames.add(filter.text.substring(index + 1));
+                }
+            } else {
+                mEnabledPlainTagFilters.add(filter.text);
+                mEnabledAllTagNames.add(filter.text);
+            }
+        }
+        for (Filter filter : mTagNamespaceFilterList) {
+            if (isEnabled(filter) && filter.text != null) {
+                mEnabledTagNamespaceFilters.add(filter.text);
+            }
+        }
+    }
+
+    private static boolean isEnabled(Filter filter) {
+        return filter != null && Boolean.TRUE.equals(filter.enable);
     }
 
     public synchronized boolean needTags() {
@@ -157,8 +207,10 @@ public final class EhFilter {
         String title = info.title;
         List<Filter> filters = mTitleFilterList;
         if (null != title && filters.size() > 0) {
+            String lowerTitle = title.toLowerCase(Locale.ROOT);
             for (int i = 0, n = filters.size(); i < n; i++) {
-                if (filters.get(i).enable && title.toLowerCase().contains(filters.get(i).text)) {
+                Filter filter = filters.get(i);
+                if (isEnabled(filter) && filter.text != null && lowerTitle.contains(filter.text)) {
                     return false;
                 }
             }
@@ -174,49 +226,7 @@ public final class EhFilter {
 
         // Uploader
         String uploader = info.uploader;
-        List<Filter> filters = mUploaderFilterList;
-        if (null != uploader && filters.size() > 0) {
-            for (int i = 0, n = filters.size(); i < n; i++) {
-                if (filters.get(i).enable && uploader.equals(filters.get(i).text)) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    private boolean matchTag(String tag, String filter) {
-        if (null == tag || null == filter) {
-            return false;
-        }
-
-        String tagNamespace;
-        String tagName;
-        String filterNamespace;
-        String filterName;
-        int index = tag.indexOf(':');
-        if (index < 0) {
-            tagNamespace = null;
-            tagName = tag;
-        } else {
-            tagNamespace = tag.substring(0, index);
-            tagName = tag.substring(index + 1);
-        }
-        index = filter.indexOf(':');
-        if (index < 0) {
-            filterNamespace = null;
-            filterName = filter;
-        } else {
-            filterNamespace = filter.substring(0, index);
-            filterName = filter.substring(index + 1);
-        }
-
-        if (null != tagNamespace && null != filterNamespace &&
-                !tagNamespace.equals(filterNamespace)) {
-            return false;
-        }
-        if (!tagName.equals(filterName)) {
+        if (null != uploader && mEnabledUploaderFilters.contains(uploader)) {
             return false;
         }
 
@@ -230,33 +240,25 @@ public final class EhFilter {
 
         // Tag
         String[] tags = info.simpleTags;
-        List<Filter> filters = mTagFilterList;
-        if (null != tags && filters.size() > 0) {
+        if (null != tags && (!mEnabledPlainTagFilters.isEmpty() ||
+                !mEnabledAllTagNames.isEmpty() || !mEnabledFullTagFilters.isEmpty())) {
             for (String tag: tags) {
-                for (int i = 0, n = filters.size(); i < n; i++) {
-                    if (filters.get(i).enable && matchTag(tag, filters.get(i).text)) {
+                if (tag == null) {
+                    continue;
+                }
+                int index = tag.indexOf(':');
+                String tagName = index >= 0 ? tag.substring(index + 1) : tag;
+                if (index >= 0) {
+                    if (mEnabledPlainTagFilters.contains(tagName) || mEnabledFullTagFilters.contains(tag)) {
                         return false;
                     }
+                } else if (mEnabledAllTagNames.contains(tag)) {
+                    return false;
                 }
             }
         }
 
         return true;
-    }
-
-    private boolean matchTagNamespace(String tag, String filter) {
-        if (null == tag || null == filter) {
-            return false;
-        }
-
-        String tagNamespace;
-        int index = tag.indexOf(':');
-        if (index >= 0) {
-            tagNamespace = tag.substring(0, index);
-            return tagNamespace.equals(filter);
-        } else {
-            return false;
-        }
     }
 
     public synchronized boolean filterTagNamespace(GalleryInfo info) {
@@ -265,13 +267,14 @@ public final class EhFilter {
         }
 
         String[] tags = info.simpleTags;
-        List<Filter> filters = mTagNamespaceFilterList;
-        if (null != tags && filters.size() > 0) {
+        if (null != tags && !mEnabledTagNamespaceFilters.isEmpty()) {
             for (String tag: tags) {
-                for (int i = 0, n = filters.size(); i < n; i++) {
-                    if (filters.get(i).enable && matchTagNamespace(tag, filters.get(i).text)) {
-                        return false;
-                    }
+                if (tag == null) {
+                    continue;
+                }
+                int index = tag.indexOf(':');
+                if (index >= 0 && mEnabledTagNamespaceFilters.contains(tag.substring(0, index))) {
+                    return false;
                 }
             }
         }

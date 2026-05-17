@@ -58,7 +58,6 @@ import com.hippo.ehviewer.download.DownloadManager;
 import com.hippo.util.ExceptionUtils;
 import com.hippo.util.SqlUtils;
 import com.hippo.lib.yorozuya.IOUtils;
-import com.hippo.lib.yorozuya.ObjectUtils;
 import com.hippo.lib.yorozuya.collect.SparseJLArray;
 
 import org.greenrobot.greendao.AbstractDao;
@@ -74,8 +73,12 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class EhDB {
 
@@ -711,6 +714,25 @@ public class EhDB {
         return list.get(0);
     }
 
+    public static synchronized Map<Long, GalleryTags> queryGalleryTagsMap(List<Long> gidList) {
+        Map<Long, GalleryTags> map = new HashMap<>();
+        if (gidList == null || gidList.isEmpty()) {
+            return map;
+        }
+        GalleryTagsDao dao = sDaoSession.getGalleryTagsDao();
+        final int chunkSize = 500;
+        for (int start = 0, size = gidList.size(); start < size; start += chunkSize) {
+            int end = Math.min(start + chunkSize, size);
+            List<GalleryTags> list = dao.queryBuilder()
+                    .where(GalleryTagsDao.Properties.Gid.in(gidList.subList(start, end)))
+                    .list();
+            for (GalleryTags tags : list) {
+                map.put(tags.gid, tags);
+            }
+        }
+        return map;
+    }
+
     public static synchronized void insertGalleryTags(GalleryTags galleryTags) {
         GalleryTagsDao dao = sDaoSession.getGalleryTagsDao();
         galleryTags.create_time = new Date();
@@ -1018,18 +1040,13 @@ public class EhDB {
             // QuickSearch
             List<QuickSearch> quickSearchList = session.getQuickSearchDao().queryBuilder().list();
             List<QuickSearch> currentQuickSearchList = sDaoSession.getQuickSearchDao().queryBuilder().list();
+            Set<String> currentQuickSearchNames = quickSearchNameSet(currentQuickSearchList);
             for (QuickSearch quickSearch : quickSearchList) {
                 String name = quickSearch.name;
-                for (QuickSearch q : currentQuickSearchList) {
-                    if (ObjectUtils.equal(q.name, name)) {
-                        // The same name
-                        name = null;
-                        break;
-                    }
-                }
-                if (null == name) {
+                if (currentQuickSearchNames.contains(name)) {
                     continue;
                 }
+                currentQuickSearchNames.add(name);
                 insertQuickSearch(quickSearch);
             }
 
@@ -1045,26 +1062,47 @@ public class EhDB {
             // Filter
             List<Filter> filterList = session.getFilterDao().queryBuilder().list();
             List<Filter> currentFilterList = sDaoSession.getFilterDao().queryBuilder().list();
+            Set<String> currentFilterKeys = filterKeySet(currentFilterList);
+            List<Filter> filtersToInsert = new ArrayList<>();
             for (Filter filter : filterList) {
-                if (!currentFilterList.contains(filter)) {
-                    addFilter(filter);
+                String key = filterKey(filter);
+                if (currentFilterKeys.add(key)) {
+                    filter.setId(null);
+                    filtersToInsert.add(filter);
                 }
+            }
+            if (!filtersToInsert.isEmpty()) {
+                sDaoSession.getFilterDao().insertInTx(filtersToInsert);
             }
 
             List<BlackList> blackList = session.getBlackListDao().queryBuilder().list();
             List<BlackList> currentBlackList = sDaoSession.getBlackListDao().queryBuilder().list();
+            Set<String> currentBlackListKeys = blackListKeySet(currentBlackList);
+            List<BlackList> blackListToInsert = new ArrayList<>();
             for (BlackList black : blackList) {
-                if (!currentBlackList.contains(black)) {
-                    insertBlackList(black);
+                String key = blackListKey(black);
+                if (key != null && currentBlackListKeys.add(key)) {
+                    black.id = null;
+                    blackListToInsert.add(black);
                 }
+            }
+            if (!blackListToInsert.isEmpty()) {
+                sDaoSession.getBlackListDao().insertInTx(blackListToInsert);
             }
 
             List<GalleryTags> galleryTagsList = session.getGalleryTagsDao().queryBuilder().list();
             List<GalleryTags> currentGalleryTags = sDaoSession.getGalleryTagsDao().queryBuilder().list();
+            Set<Long> currentGalleryTagGids = galleryTagGidSet(currentGalleryTags);
+            List<GalleryTags> galleryTagsToInsert = new ArrayList<>();
             for (GalleryTags tags : galleryTagsList) {
-                if (!currentGalleryTags.contains(tags)) {
-                    insertGalleryTags(tags);
+                if (currentGalleryTagGids.add(tags.gid)) {
+                    tags.create_time = new Date();
+                    tags.update_time = tags.create_time;
+                    galleryTagsToInsert.add(tags);
                 }
+            }
+            if (!galleryTagsToInsert.isEmpty()) {
+                sDaoSession.getGalleryTagsDao().insertInTx(galleryTagsToInsert);
             }
 
             return null;
@@ -1073,6 +1111,50 @@ public class EhDB {
             // Ignore
             return context.getString(R.string.cant_read_the_file);
         }
+    }
+
+    private static Set<String> quickSearchNameSet(List<QuickSearch> list) {
+        Set<String> set = new HashSet<>();
+        for (QuickSearch quickSearch : list) {
+            set.add(quickSearch.name);
+        }
+        return set;
+    }
+
+    private static Set<String> filterKeySet(List<Filter> list) {
+        Set<String> set = new HashSet<>();
+        for (Filter filter : list) {
+            set.add(filterKey(filter));
+        }
+        return set;
+    }
+
+    private static String filterKey(Filter filter) {
+        return filter.mode + "\u0000" + filter.text;
+    }
+
+    private static Set<String> blackListKeySet(List<BlackList> list) {
+        Set<String> set = new HashSet<>();
+        for (BlackList blackList : list) {
+            String key = blackListKey(blackList);
+            if (key != null) {
+                set.add(key);
+            }
+        }
+        return set;
+    }
+
+    @Nullable
+    private static String blackListKey(BlackList blackList) {
+        return blackList != null ? blackList.badgayname : null;
+    }
+
+    private static Set<Long> galleryTagGidSet(List<GalleryTags> list) {
+        Set<Long> set = new HashSet<>();
+        for (GalleryTags tags : list) {
+            set.add(tags.gid);
+        }
+        return set;
     }
 
     private static void sendImportProgress(Handler handler, int progress) {
