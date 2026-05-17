@@ -16,7 +16,9 @@
 
 package com.hippo.widget;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
+import android.os.Build;
 import android.util.AttributeSet;
 import android.widget.TextView;
 import com.google.android.material.textfield.TextInputEditText;
@@ -27,6 +29,7 @@ import java.lang.reflect.Method;
 // Avoid crash on some Meizu devices
 // https://github.com/android-in-china/Compatibility/issues/11
 // https://stackoverflow.com/questions/51891415/nullpointerexception-on-meizu-devices-in-editor-updatecursorpositionmz/52001305
+@SuppressLint({"PrivateApi", "SoonBlockedPrivateApi"})
 public class HackyTextInputEditText extends TextInputEditText {
 
   private static final boolean HAS_METHOD_UPDATE_CURSOR_POSITION_MZ;
@@ -47,7 +50,7 @@ public class HackyTextInputEditText extends TextInputEditText {
     }
 
     Field fieldMHint = null;
-    if (hasMethodUpdateCursorPositionMz) {
+    if (hasMethodUpdateCursorPositionMz && Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
       try {
         fieldMHint = TextView.class.getDeclaredField("mHint");
         fieldMHint.setAccessible(true);

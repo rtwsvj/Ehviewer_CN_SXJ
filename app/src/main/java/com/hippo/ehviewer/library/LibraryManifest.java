@@ -106,10 +106,14 @@ public final class LibraryManifest {
         if (files == null) {
             return filesJson;
         }
-        Arrays.sort(files, Comparator.comparing(file -> {
-            String name = file.getName();
-            return name != null ? name : "";
-        }));
+        Arrays.sort(files, new Comparator<UniFile>() {
+            @Override
+            public int compare(UniFile lhs, UniFile rhs) {
+                String lhsName = lhs.getName();
+                String rhsName = rhs.getName();
+                return (lhsName != null ? lhsName : "").compareTo(rhsName != null ? rhsName : "");
+            }
+        });
         for (UniFile file : files) {
             if (!file.isFile()) {
                 continue;

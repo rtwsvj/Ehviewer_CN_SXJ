@@ -24,7 +24,6 @@ import android.view.View;
 import androidx.annotation.Nullable;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.core.view.ViewCompat;
-import com.google.android.material.snackbar.Snackbar;
 import com.hippo.drawerlayout.DrawerLayout;
 import com.hippo.ehviewer.R;
 import com.hippo.lib.yorozuya.AnimationUtils;
@@ -80,13 +79,13 @@ public class EhDrawerLayout extends DrawerLayout {
         public boolean layoutDependsOn(CoordinatorLayout parent,
                 EhDrawerLayout child, View dependency) {
             // We're dependent on all SnackbarLayouts (if enabled)
-            return SNACKBAR_BEHAVIOR_ENABLED && dependency instanceof Snackbar.SnackbarLayout;
+            return SNACKBAR_BEHAVIOR_ENABLED && isSnackbarLayout(dependency);
         }
 
         @Override
         public boolean onDependentViewChanged(CoordinatorLayout parent, EhDrawerLayout child,
                 View dependency) {
-            if (dependency instanceof Snackbar.SnackbarLayout) {
+            if (isSnackbarLayout(dependency)) {
                 for (int i = 0, n = child.getAboveSnackViewCount(); i < n; i++) {
                     View view = child.getAboveSnackViewAt(i);
                     updateChildTranslationForSnackbar(parent, child, view);
@@ -152,13 +151,19 @@ public class EhDrawerLayout extends DrawerLayout {
             final List<View> dependencies = parent.getDependencies(child);
             for (int i = 0, z = dependencies.size(); i < z; i++) {
                 final View view = dependencies.get(i);
-                if (view instanceof Snackbar.SnackbarLayout && parent.doViewsOverlap(child, view)) {
+                if (isSnackbarLayout(view) && parent.doViewsOverlap(child, view)) {
                     minOffset = Math.min(minOffset,
                             ViewCompat.getTranslationY(view) - view.getHeight());
                 }
             }
 
             return minOffset;
+        }
+
+        private static boolean isSnackbarLayout(View view) {
+            return view != null &&
+                    "com.google.android.material.snackbar.Snackbar$SnackbarLayout"
+                            .equals(view.getClass().getName());
         }
     }
 }
