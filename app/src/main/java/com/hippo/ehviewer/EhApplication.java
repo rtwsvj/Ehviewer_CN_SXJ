@@ -60,7 +60,6 @@ import com.hippo.lib.image.Image;
 //import com.hippo.lib.image.ImageBitmap;
 import com.hippo.network.EhSSLSocketFactory;
 import com.hippo.network.EhSSLSocketFactoryLowSDK;
-import com.hippo.network.EhX509TrustManager;
 import com.hippo.network.StatusCodeException;
 import com.hippo.text.Html;
 import com.hippo.unifile.UniFile;
@@ -414,48 +413,53 @@ public class EhApplication extends RecordingApplication {
                         return response;
                     })
                     .proxySelector(getEhProxySelector(application));
-            if (Settings.getDF() && AppHelper.checkVPN(context)) {
-                if (Build.VERSION.SDK_INT < 29) {
-                    Security.insertProviderAt(Conscrypt.newProvider(), 1);
-                    builder.connectionSpecs(Collections.singletonList(ConnectionSpec.MODERN_TLS));
-                    try {
-                        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(
-                                TrustManagerFactory.getDefaultAlgorithm());
-                        trustManagerFactory.init((KeyStore) null);
-                        TrustManager[] trustManagers = trustManagerFactory.getTrustManagers();
-                        if (trustManagers.length != 1 || !(trustManagers[0] instanceof X509TrustManager)) {
-                            throw new IllegalStateException("Unexpected default trust managers:" + Arrays.toString(trustManagers));
-                        }
-                        X509TrustManager trustManager = (X509TrustManager) trustManagers[0];
-//                        X509TrustManager tm = Conscrypt.getDefaultX509TrustManager();
-                        SSLContext sslContext = SSLContext.getInstance("TLS", "Conscrypt");
-                        sslContext.init(null, trustManagers, null);
-                        builder.sslSocketFactory(new EhSSLSocketFactoryLowSDK(sslContext.getSocketFactory()), trustManager);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        builder.sslSocketFactory(new EhSSLSocketFactoryLowSDK(new EhSSLSocketFactory()), new EhX509TrustManager());
-                    }
-                } else {
-                    try {
-                        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(
-                                TrustManagerFactory.getDefaultAlgorithm());
-                        trustManagerFactory.init((KeyStore) null);
-                        TrustManager[] trustManagers = trustManagerFactory.getTrustManagers();
-                        if (trustManagers.length != 1 || !(trustManagers[0] instanceof X509TrustManager)) {
-                            throw new IllegalStateException("Unexpected default trust managers:" + Arrays.toString(trustManagers));
-                        }
-                        X509TrustManager trustManager = (X509TrustManager) trustManagers[0];
-                        builder.sslSocketFactory(new EhSSLSocketFactory(), trustManager);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        builder.sslSocketFactory(new EhSSLSocketFactory(), new EhX509TrustManager());
-                    }
-                }
-            }
+            configureDomainFrontingTls(builder, context);
             application.mOkHttpClient = builder.build();
         }
 
         return application.mOkHttpClient;
+    }
+
+    private static void configureDomainFrontingTls(@NonNull OkHttpClient.Builder builder,
+            @NonNull Context context) {
+        if (!Settings.getDF() || !AppHelper.checkVPN(context)) {
+            return;
+        }
+
+        X509TrustManager trustManager;
+        try {
+            trustManager = getDefaultTrustManager();
+        } catch (Exception e) {
+            Log.e(TAG, "Default TLS trust manager unavailable; keeping platform TLS defaults", e);
+            return;
+        }
+
+        if (Build.VERSION.SDK_INT < 29) {
+            Security.insertProviderAt(Conscrypt.newProvider(), 1);
+            builder.connectionSpecs(Collections.singletonList(ConnectionSpec.MODERN_TLS));
+            try {
+                SSLContext sslContext = SSLContext.getInstance("TLS", "Conscrypt");
+                sslContext.init(null, new TrustManager[]{trustManager}, null);
+                builder.sslSocketFactory(
+                        new EhSSLSocketFactoryLowSDK(sslContext.getSocketFactory()), trustManager);
+            } catch (Exception e) {
+                Log.e(TAG, "Conscrypt TLS setup failed; keeping platform TLS defaults", e);
+            }
+        } else {
+            builder.sslSocketFactory(new EhSSLSocketFactory(), trustManager);
+        }
+    }
+
+    private static X509TrustManager getDefaultTrustManager() throws Exception {
+        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(
+                TrustManagerFactory.getDefaultAlgorithm());
+        trustManagerFactory.init((KeyStore) null);
+        TrustManager[] trustManagers = trustManagerFactory.getTrustManagers();
+        if (trustManagers.length != 1 || !(trustManagers[0] instanceof X509TrustManager)) {
+            throw new IllegalStateException(
+                    "Unexpected default trust managers:" + Arrays.toString(trustManagers));
+        }
+        return (X509TrustManager) trustManagers[0];
     }
 
     @NonNull
@@ -481,43 +485,7 @@ public class EhApplication extends RecordingApplication {
                         }
                     })
                     .proxySelector(getEhProxySelector(application));
-            if (Settings.getDF() && AppHelper.checkVPN(context)) {
-                if (Build.VERSION.SDK_INT < 29) {
-                    Security.insertProviderAt(Conscrypt.newProvider(), 1);
-                    builder.connectionSpecs(Collections.singletonList(ConnectionSpec.MODERN_TLS));
-                    try {
-                        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(
-                                TrustManagerFactory.getDefaultAlgorithm());
-                        trustManagerFactory.init((KeyStore) null);
-                        TrustManager[] trustManagers = trustManagerFactory.getTrustManagers();
-                        if (trustManagers.length != 1 || !(trustManagers[0] instanceof X509TrustManager)) {
-                            throw new IllegalStateException("Unexpected default trust managers:" + Arrays.toString(trustManagers));
-                        }
-                        X509TrustManager trustManager = (X509TrustManager) trustManagers[0];
-                        SSLContext sslContext = SSLContext.getInstance("TLS", "Conscrypt");
-                        sslContext.init(null, trustManagers, null);
-                        builder.sslSocketFactory(new EhSSLSocketFactoryLowSDK(sslContext.getSocketFactory()), trustManager);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        builder.sslSocketFactory(new EhSSLSocketFactoryLowSDK(new EhSSLSocketFactory()), new EhX509TrustManager());
-                    }
-                } else {
-                    try {
-                        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(
-                                TrustManagerFactory.getDefaultAlgorithm());
-                        trustManagerFactory.init((KeyStore) null);
-                        TrustManager[] trustManagers = trustManagerFactory.getTrustManagers();
-                        if (trustManagers.length != 1 || !(trustManagers[0] instanceof X509TrustManager)) {
-                            throw new IllegalStateException("Unexpected default trust managers:" + Arrays.toString(trustManagers));
-                        }
-                        X509TrustManager trustManager = (X509TrustManager) trustManagers[0];
-                        builder.sslSocketFactory(new EhSSLSocketFactory(), trustManager);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        builder.sslSocketFactory(new EhSSLSocketFactory(), new EhX509TrustManager());
-                    }
-                }
-            }
+            configureDomainFrontingTls(builder, context);
             application.mImageOkHttpClient = builder.build();
         }
 
@@ -768,4 +736,3 @@ public class EhApplication extends RecordingApplication {
     }
 
 }
-

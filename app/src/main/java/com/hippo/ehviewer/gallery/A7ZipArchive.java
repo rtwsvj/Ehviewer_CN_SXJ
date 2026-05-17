@@ -73,8 +73,10 @@ public class A7ZipArchive implements Closeable {
                     && !archive.getEntryBooleanProperty(i, PropID.IS_VOLUME)
                     && !archive.getEntryBooleanProperty(i, PropID.SOLID)) {
                 String path = archive.getEntryPath(i);
-                if (isSupportedFilename(path.toLowerCase())) {
-                    entries.add(new A7ZipArchiveEntry(archive, i, path));
+                long size = getEntrySize(i);
+                if (isSupportedFilename(path.toLowerCase()) &&
+                        ArchiveSecurity.isEntrySizeAllowed(size)) {
+                    entries.add(new A7ZipArchiveEntry(archive, i, path, size));
                 }
             }
         }
@@ -85,6 +87,9 @@ public class A7ZipArchive implements Closeable {
     public static A7ZipArchive create(UniRandomAccessFile file) throws ArchiveException {
         SeekableInputStream store = new UniRandomAccessFileInStream(file);
         InArchive archive = InArchive.open(store);
+        if (!ArchiveSecurity.isEntryCountAllowed(archive.getNumberOfEntries())) {
+            throw new ArchiveException("Archive has too many entries");
+        }
         if ((archive.getArchivePropertyType(PropID.ENCRYPTED) == PropType.BOOL && archive.getArchiveBooleanProperty(PropID.ENCRYPTED))
                 || (archive.getArchivePropertyType(PropID.SOLID) == PropType.BOOL && archive.getArchiveBooleanProperty(PropID.SOLID))
                 || (archive.getArchivePropertyType(PropID.IS_VOLUME) == PropType.BOOL && archive.getArchiveBooleanProperty(PropID.IS_VOLUME))) {
@@ -93,20 +98,37 @@ public class A7ZipArchive implements Closeable {
         return new A7ZipArchive(archive);
     }
 
+    private long getEntrySize(int index) {
+        PropType type = archive.getEntryPropertyType(index, PropID.SIZE);
+        if (type == PropType.LONG) {
+            return archive.getEntryLongProperty(index, PropID.SIZE);
+        }
+        if (type == PropType.INT) {
+            return archive.getEntryIntProperty(index, PropID.SIZE);
+        }
+        return -1L;
+    }
+
     public static class A7ZipArchiveEntry {
 
         private InArchive archive;
         private int index;
         private String path;
+        private long size;
 
-        private A7ZipArchiveEntry(InArchive archive, int index, String path) {
+        private A7ZipArchiveEntry(InArchive archive, int index, String path, long size) {
             this.archive = archive;
             this.index = index;
             this.path = path;
+            this.size = size;
         }
 
         public String getPath() {
             return path;
+        }
+
+        public long getSize() {
+            return size;
         }
 
         public void extract(OutputStream os) throws ArchiveException {

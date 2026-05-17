@@ -91,6 +91,7 @@ import com.hippo.ehviewer.dao.DownloadLabel;
 import com.hippo.ehviewer.download.DownloadManager;
 import com.hippo.ehviewer.download.DownloadService;
 import com.hippo.ehviewer.event.SomethingNeedRefresh;
+import com.hippo.ehviewer.gallery.ArchiveSecurity;
 import com.hippo.ehviewer.spider.SpiderInfo;
 import com.hippo.ehviewer.sync.DownloadListInfosExecutor;
 import com.hippo.ehviewer.sync.DownloadSpiderInfoExecutor;
@@ -1738,6 +1739,14 @@ public class DownloadsScene extends ToolbarScene
             if (!isValidArchiveFormat(fileName)) {
                 runOnUiThread(() ->
                         Toast.makeText(context, R.string.import_archive_invalid_format, Toast.LENGTH_SHORT).show()
+                );
+                return;
+            }
+
+            UniFile archiveFile = UniFile.fromUri(context, uri);
+            if (archiveFile == null || !ArchiveSecurity.isArchiveSizeAllowed(archiveFile.length())) {
+                runOnUiThread(() ->
+                        Toast.makeText(context, R.string.error_invalid_archive, Toast.LENGTH_SHORT).show()
                 );
                 return;
             }

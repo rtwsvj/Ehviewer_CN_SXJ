@@ -19,9 +19,13 @@
     <base-config>
         <trust-anchors>
             <certificates src="system"/>
-            <certificates src="user"/>
         </trust-anchors>
     </base-config>
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="user"/>
+        </trust-anchors>
+    </debug-overrides>
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">ehtracker.org</domain>
     </domain-config>

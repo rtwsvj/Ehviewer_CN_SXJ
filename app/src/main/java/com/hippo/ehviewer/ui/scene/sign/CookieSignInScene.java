@@ -283,8 +283,7 @@ public class CookieSignInScene extends SolidScene implements EditText.OnEditorAc
     }
 
     private static Cookie newCookie(String name, String value, String domain) {
-        return new Cookie.Builder().name(name).value(value)
-                .domain(domain).expiresAt(Long.MAX_VALUE).build();
+        return EhCookieStore.newIdentityCookie(name, value, domain);
     }
 
     private void storeCookie(String id, String hash, String igneous) {

@@ -124,6 +124,18 @@ public class EhCookieStore extends CookieRepository {
                 KEY_IGNEOUS.equals(name);
     }
 
+    public static Cookie newIdentityCookie(String name, String value, String domain) {
+        return new Cookie.Builder()
+                .name(name)
+                .value(value)
+                .domain(domain)
+                .path("/")
+                .secure()
+                .httpOnly()
+                .expiresAt(Long.MAX_VALUE)
+                .build();
+    }
+
     public static Cookie newCookie(Cookie cookie, String newDomain, boolean forcePersistent,
             boolean forceLongLive, boolean forceNotHostOnly) {
         Cookie.Builder builder = new Cookie.Builder();
@@ -143,10 +155,10 @@ public class EhCookieStore extends CookieRepository {
             builder.domain(newDomain);
         }
         builder.path(cookie.path());
-        if (cookie.secure()) {
+        if (cookie.secure() || isIdentityCookie(cookie.name())) {
             builder.secure();
         }
-        if (cookie.httpOnly()) {
+        if (cookie.httpOnly() || isIdentityCookie(cookie.name())) {
             builder.httpOnly();
         }
         return builder.build();
@@ -230,6 +242,8 @@ public class EhCookieStore extends CookieRepository {
                 .value(value)
                 .domain(domain)
                 .path("/")
+                .secure()
+                .httpOnly()
                 .build());
     }
 
@@ -253,10 +267,10 @@ public class EhCookieStore extends CookieRepository {
         } else {
             builder.domain(cookie.domain());
         }
-        if (cookie.secure()) {
+        if (cookie.secure() || isIdentityCookie(cookie.name())) {
             builder.secure();
         }
-        if (cookie.httpOnly()) {
+        if (cookie.httpOnly() || isIdentityCookie(cookie.name())) {
             builder.httpOnly();
         }
         return builder.build();

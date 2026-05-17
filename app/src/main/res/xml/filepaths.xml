@@ -16,9 +16,6 @@
 
 <path xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <root-path
-        name="root"
-        path="" />
     <files-path
         name="files"
         path="EhViewer/files" />

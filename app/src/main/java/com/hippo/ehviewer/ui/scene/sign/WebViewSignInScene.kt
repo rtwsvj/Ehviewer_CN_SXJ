@@ -71,7 +71,6 @@ class WebViewSignInScene : SolidScene() {
             cookieManager.removeAllCookies(null)
             cookieManager.removeSessionCookies(null)
             CookieManager.getInstance().setAcceptCookie(true)
-            CookieManager.setAcceptFileSchemeCookies(true)
 
             mWebView = WebView(context)
             val webSettings = mWebView!!.settings

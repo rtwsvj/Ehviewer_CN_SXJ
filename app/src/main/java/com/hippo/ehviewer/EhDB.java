@@ -662,8 +662,15 @@ public class EhDB {
     }
 
     public static synchronized boolean inBlackList(String Badgayname) {
+        if (Badgayname == null) {
+            return false;
+        }
         BlackListDao dao = sDaoSession.getBlackListDao();
-        return dao.queryRaw("where Badgayname ='" + Badgayname + "'").size() != 0;
+        return !dao.queryBuilder()
+                .where(BlackListDao.Properties.Badgayname.eq(Badgayname))
+                .limit(1)
+                .list()
+                .isEmpty();
     }
 
     public static synchronized void insertBlackList(BlackList blackList) {

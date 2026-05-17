@@ -157,7 +157,7 @@ public class ArchiveGalleryProvider extends GalleryProvider2 {
     @Override
     public void run() {
       UniRandomAccessFile uraf = null;
-      if (file != null) {
+      if (file != null && ArchiveSecurity.isArchiveSizeAllowed(file.length())) {
         try {
           uraf = file.createRandomAccessFile("r");
         } catch (IOException e) {
