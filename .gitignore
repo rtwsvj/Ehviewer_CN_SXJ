@@ -8,6 +8,11 @@
 /captures
 release
 google-services.json
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.key
 java_pid10692.hprof
 gradle/wrapper/gradle-wrapper.jar
 gradle/wrapper/gradle-wrapper.properties
