@@ -204,3 +204,9 @@ configurations.configureEach {
         exclude group: 'com.github.seven332', module: 'okhttp'
     }
 }
+
+// Robolectric already supplies conscrypt-openjdk-uber. Keep the Android native
+// artifact out of JVM test runtime so Linux CI does not try to load conscrypt_jni.
+configurations.matching { it.name.endsWith('UnitTestRuntimeClasspath') }.configureEach {
+    exclude group: 'org.conscrypt', module: 'conscrypt-android'
+}
