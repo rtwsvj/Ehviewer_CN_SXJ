@@ -701,6 +701,10 @@
     <string name="settings_download_restore_not_found">Not found download items to restore</string>
     <string name="settings_download_restore_failed">Restore failed</string>
     <string name="settings_download_restore_successfully">Restore %d items successfully</string>
+    <string name="settings_download_rebuild_local_library">Rebuild local library index</string>
+    <string name="settings_download_rebuild_local_library_summary">Scan the local library path and restore manifests into Downloads</string>
+    <string name="settings_download_rebuild_local_library_running">Rebuilding local library index</string>
+    <string name="settings_download_rebuild_local_library_done">Local library index rebuilt. Imported %1$d, updated %2$d, skipped %3$d, failed %4$d</string>
     <string name="settings_download_export_library_zip">Export local library zip</string>
     <string name="settings_download_export_library_zip_summary">Package downloaded galleries and manifests into one zip</string>
     <string name="settings_download_export_library_cbz">Export downloaded galleries as CBZ</string>

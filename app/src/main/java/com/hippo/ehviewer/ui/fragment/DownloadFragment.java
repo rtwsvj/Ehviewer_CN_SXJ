@@ -36,6 +36,7 @@ import com.hippo.ehviewer.R;
 import com.hippo.ehviewer.Settings;
 import com.hippo.ehviewer.client.data.GalleryInfo;
 import com.hippo.ehviewer.download.DownloadManager;
+import com.hippo.ehviewer.library.LibraryScanner;
 import com.hippo.ehviewer.ui.CommonOperations;
 import com.hippo.ehviewer.ui.DirPickerActivity;
 import com.hippo.ehviewer.ui.LibraryExportTask;
@@ -66,6 +67,7 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
     public static final String KEY_DOWNLOAD_LOCATION = "download_location";
     public static final String KEY_EXPORT_DOWNLOAD_ITEMS = "export_download_items";
     public static final String KEY_IMPORT_DOWNLOAD_ITEMS = "import_download_items";
+    public static final String KEY_REBUILD_LOCAL_LIBRARY = "rebuild_local_library";
     public static final String KEY_EXPORT_LIBRARY_ZIP = "export_library_zip";
     public static final String KEY_EXPORT_LIBRARY_CBZ = "export_library_cbz";
     public static final String KEY_CLEAN_INVALID_DOWNLOAD = "clean_invalid_download";
@@ -84,6 +86,7 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
         mDownloadLocation = findPreference(KEY_DOWNLOAD_LOCATION);
         Preference exportDownloadItems = findPreference(KEY_EXPORT_DOWNLOAD_ITEMS);
         Preference importDownloadItems = findPreference(KEY_IMPORT_DOWNLOAD_ITEMS);
+        Preference rebuildLocalLibrary = findPreference(KEY_REBUILD_LOCAL_LIBRARY);
         Preference exportLibraryZip = findPreference(KEY_EXPORT_LIBRARY_ZIP);
         Preference exportLibraryCbz = findPreference(KEY_EXPORT_LIBRARY_CBZ);
         Preference cleanInvalidDownload = findPreference(KEY_CLEAN_INVALID_DOWNLOAD);
@@ -129,6 +132,9 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
         }
         if (importDownloadItems != null) {
             importDownloadItems.setOnPreferenceClickListener(this);
+        }
+        if (rebuildLocalLibrary != null) {
+            rebuildLocalLibrary.setOnPreferenceClickListener(this);
         }
         if (exportLibraryZip != null) {
             exportLibraryZip.setOnPreferenceClickListener(this);
@@ -176,6 +182,9 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
             return true;
         } else if (KEY_IMPORT_DOWNLOAD_ITEMS.equals(key)) {
             importDownloadItems();
+            return true;
+        } else if (KEY_REBUILD_LOCAL_LIBRARY.equals(key)) {
+            rebuildLocalLibrary();
             return true;
         } else if (KEY_EXPORT_LIBRARY_ZIP.equals(key)) {
             exportLibraryZip();
@@ -281,6 +290,10 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
         }
     }
 
+    private void rebuildLocalLibrary() {
+        new LocalLibraryScanTask(this).execute();
+    }
+
     private void exportLibraryZip() {
         if (getActivity() != null) {
             LibraryExportTask.exportLibraryZip(getActivity(),
@@ -308,6 +321,7 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
                     if (uniFile != null) {
                         Settings.putDownloadLocation(uniFile);
                         onUpdateDownloadLocation();
+                        rebuildLocalLibrary();
                     } else {
                         Toast.makeText(getActivity(), R.string.settings_download_cant_get_download_location,
                                 Toast.LENGTH_SHORT).show();
@@ -325,6 +339,7 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
                         if (uniFile != null) {
                             Settings.putDownloadLocation(uniFile);
                             onUpdateDownloadLocation();
+                            rebuildLocalLibrary();
                         } else {
                             Toast.makeText(getActivity(), R.string.settings_download_cant_get_download_location,
                                     Toast.LENGTH_SHORT).show();
@@ -377,6 +392,60 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
             return Integer.parseInt(newValue.toString());
         }catch (NumberFormatException e){
             return 0;
+        }
+    }
+
+    private static class LocalLibraryScanTask extends AsyncTask<Void, Void, LibraryScanner.Result> {
+
+        private final WeakReference<DownloadFragment> mFragment;
+        private ProgressDialog mProgressDialog;
+
+        LocalLibraryScanTask(DownloadFragment fragment) {
+            mFragment = new WeakReference<>(fragment);
+        }
+
+        @Override
+        protected void onPreExecute() {
+            DownloadFragment fragment = mFragment.get();
+            if (fragment == null || fragment.getActivity() == null) {
+                return;
+            }
+            mProgressDialog = new ProgressDialog(fragment.getActivity());
+            mProgressDialog.setTitle(R.string.settings_download_rebuild_local_library_running);
+            mProgressDialog.setIndeterminate(true);
+            mProgressDialog.setCancelable(false);
+            mProgressDialog.show();
+        }
+
+        @Override
+        protected LibraryScanner.Result doInBackground(Void... voids) {
+            return LibraryScanner.scan(Settings.getDownloadLocation());
+        }
+
+        @Override
+        protected void onPostExecute(LibraryScanner.Result result) {
+            DownloadFragment fragment = mFragment.get();
+            if (mProgressDialog != null) {
+                if (fragment != null && fragment.isAdded() && fragment.getActivity() != null) {
+                    try {
+                        if (mProgressDialog.isShowing()) {
+                            mProgressDialog.dismiss();
+                        }
+                    } catch (IllegalArgumentException e) {
+                        ExceptionUtils.throwIfFatal(e);
+                    }
+                }
+                mProgressDialog = null;
+            }
+            if (fragment == null || fragment.getActivity() == null) {
+                return;
+            }
+
+            EhApplication.getDownloadManager(fragment.requireActivity()).syncLocalLibrary(result);
+            Toast.makeText(fragment.requireActivity(),
+                    fragment.getString(R.string.settings_download_rebuild_local_library_done,
+                            result.imported, result.updated, result.skipped, result.failed),
+                    Toast.LENGTH_LONG).show();
         }
     }
 

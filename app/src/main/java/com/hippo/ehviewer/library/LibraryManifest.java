@@ -16,9 +16,12 @@
 
 package com.hippo.ehviewer.library;
 
+import android.util.SparseArray;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.hippo.ehviewer.client.EhUrl;
@@ -30,10 +33,13 @@ import com.hippo.unifile.UniFile;
 import com.hippo.lib.yorozuya.IOUtils;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 
 public final class LibraryManifest {
 
@@ -41,6 +47,35 @@ public final class LibraryManifest {
     private static final String SCHEMA = "ehview.library.manifest.v1";
 
     private LibraryManifest() {
+    }
+
+    @Nullable
+    public static Record read(@NonNull UniFile dir) {
+        UniFile manifestFile = dir.findFile(MANIFEST_FILENAME);
+        if (manifestFile == null || !manifestFile.isFile()) {
+            return null;
+        }
+
+        InputStream is = null;
+        try {
+            is = manifestFile.openInputStream();
+            JSONObject manifest = JSON.parseObject(IOUtils.readString(is, StandardCharsets.UTF_8.name()));
+            if (manifest == null) {
+                return Record.warning(dir.getName(), "manifest is empty");
+            }
+
+            DownloadInfo info = readDownloadInfo(manifest);
+            if (info == null || info.gid <= 0) {
+                return Record.warning(dir.getName(), "manifest has no gallery info");
+            }
+            String dirname = dir.getName();
+            SpiderInfo spiderInfo = readSpiderInfo(manifest, info);
+            return new Record(dirname, info, spiderInfo, readFiles(manifest), null, true, false);
+        } catch (Throwable e) {
+            return Record.warning(dir.getName(), "manifest read failed");
+        } finally {
+            IOUtils.closeQuietly(is);
+        }
     }
 
     public static boolean write(@NonNull GalleryInfo galleryInfo, @Nullable SpiderInfo spiderInfo) {
@@ -119,7 +154,7 @@ public final class LibraryManifest {
                 continue;
             }
             String name = file.getName();
-            if (name == null || name.startsWith(".")) {
+            if (name == null || name.startsWith(".") || MANIFEST_FILENAME.equals(name)) {
                 continue;
             }
             JSONObject fileJson = new JSONObject();
@@ -128,5 +163,112 @@ public final class LibraryManifest {
             filesJson.add(fileJson);
         }
         return filesJson;
+    }
+
+    @Nullable
+    private static DownloadInfo readDownloadInfo(JSONObject manifest) {
+        JSONObject download = manifest.getJSONObject("download");
+        if (download != null) {
+            return DownloadInfo.downloadInfoFromJson(download);
+        }
+
+        JSONObject gallery = manifest.getJSONObject("gallery");
+        if (gallery != null) {
+            return GalleryInfo.galleryInfoFromJson(gallery).getDownloadInfo(null);
+        }
+
+        JSONObject source = manifest.getJSONObject("source");
+        if (source == null) {
+            return null;
+        }
+        DownloadInfo info = new DownloadInfo();
+        info.gid = source.getLongValue("gid");
+        info.token = source.getString("token");
+        return info;
+    }
+
+    @Nullable
+    private static SpiderInfo readSpiderInfo(JSONObject manifest, DownloadInfo info) {
+        JSONObject reading = manifest.getJSONObject("reading");
+        if (reading == null) {
+            return null;
+        }
+
+        SpiderInfo spiderInfo = new SpiderInfo();
+        spiderInfo.gid = info.gid;
+        spiderInfo.token = info.token;
+        spiderInfo.startPage = Math.max(0, reading.getIntValue("startPage"));
+        spiderInfo.pages = reading.getIntValue("pages");
+        spiderInfo.previewPages = reading.getIntValue("previewPages");
+        spiderInfo.previewPerPage = reading.getIntValue("previewPerPage");
+        if (spiderInfo.pages <= 0) {
+            spiderInfo.pages = info.pages;
+        }
+        if (spiderInfo.pages > 0) {
+            spiderInfo.pTokenMap = new SparseArray<>(spiderInfo.pages);
+        }
+        return spiderInfo.pages > 0 ? spiderInfo : null;
+    }
+
+    private static List<FileEntry> readFiles(JSONObject manifest) {
+        List<FileEntry> result = new ArrayList<>();
+        JSONArray files = manifest.getJSONArray("files");
+        if (files == null) {
+            return result;
+        }
+        for (int i = 0, n = files.size(); i < n; i++) {
+            JSONObject file = files.getJSONObject(i);
+            if (file == null) {
+                continue;
+            }
+            String name = file.getString("name");
+            if (name == null) {
+                continue;
+            }
+            result.add(new FileEntry(name, file.getLongValue("length")));
+        }
+        return result;
+    }
+
+    public static final class Record {
+        @Nullable
+        public final String dirname;
+        @Nullable
+        public final DownloadInfo downloadInfo;
+        @Nullable
+        public final SpiderInfo spiderInfo;
+        @NonNull
+        public final List<FileEntry> files;
+        @Nullable
+        public final String warning;
+        public final boolean fromManifest;
+        public final boolean fromLegacySpiderInfo;
+
+        public Record(@Nullable String dirname, @Nullable DownloadInfo downloadInfo,
+                @Nullable SpiderInfo spiderInfo, @NonNull List<FileEntry> files,
+                @Nullable String warning, boolean fromManifest, boolean fromLegacySpiderInfo) {
+            this.dirname = dirname;
+            this.downloadInfo = downloadInfo;
+            this.spiderInfo = spiderInfo;
+            this.files = files;
+            this.warning = warning;
+            this.fromManifest = fromManifest;
+            this.fromLegacySpiderInfo = fromLegacySpiderInfo;
+        }
+
+        static Record warning(@Nullable String dirname, @NonNull String warning) {
+            return new Record(dirname, null, null, new ArrayList<>(), warning, false, false);
+        }
+    }
+
+    public static final class FileEntry {
+        @NonNull
+        public final String name;
+        public final long length;
+
+        FileEntry(@NonNull String name, long length) {
+            this.name = name;
+            this.length = length;
+        }
     }
 }

@@ -106,6 +106,13 @@
         app:iconSpaceReserved="false" />
 
     <Preference
+        android:key="rebuild_local_library"
+        android:summary="@string/settings_download_rebuild_local_library_summary"
+        android:title="@string/settings_download_rebuild_local_library"
+        app:allowDividerAbove="true"
+        app:iconSpaceReserved="false" />
+
+    <Preference
         android:key="export_library_zip"
         android:summary="@string/settings_download_export_library_zip_summary"
         android:title="@string/settings_download_export_library_zip"

@@ -27,7 +27,6 @@ import com.hippo.ehviewer.dao.DownloadInfo;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.regex.Pattern;
 
 public class GalleryInfo implements Parcelable {
@@ -347,7 +346,11 @@ public class GalleryInfo implements Parcelable {
         jsonObject.put("spanGroupIndex", spanGroupIndex);
         jsonObject.put("favoriteSlot", favoriteSlot);
         jsonObject.put("favoriteName", favoriteName);
-        jsonObject.put("tgList", new JSONArray(Collections.singletonList(tgList)));
+        JSONArray tagListJson = new JSONArray();
+        if (tgList != null) {
+            tagListJson.addAll(tgList);
+        }
+        jsonObject.put("tgList", tagListJson);
         jsonObject.put("pages", pages);
         return jsonObject;
     }
@@ -360,9 +363,9 @@ public class GalleryInfo implements Parcelable {
         galleryInfo.favoriteSlot = object.getIntValue("favoriteSlot");
         galleryInfo.gid = object.getLongValue("gid");
         galleryInfo.pages = object.getIntValue("pages");
-        galleryInfo.rated = object.getBoolean("rated");
-        galleryInfo.rating = object.getFloat("rating");
-        galleryInfo.simpleLanguage = object.getString("");
+        galleryInfo.rated = object.getBooleanValue("rated");
+        galleryInfo.rating = object.getFloatValue("rating");
+        galleryInfo.simpleLanguage = object.getString("simpleLanguage");
         JSONArray simpleTagsArr = object.getJSONArray("simpleTags");
         if (simpleTagsArr != null) {
             try {
@@ -376,7 +379,11 @@ public class GalleryInfo implements Parcelable {
         JSONArray tgArray = object.getJSONArray("tgList");
         if (tgArray != null) {
             try {
-                galleryInfo.tgList = (ArrayList<String>) tgArray.toJavaList(String.class);
+                if (!tgArray.isEmpty() && tgArray.get(0) instanceof JSONArray) {
+                    galleryInfo.tgList = (ArrayList<String>) ((JSONArray) tgArray.get(0)).toJavaList(String.class);
+                } else {
+                    galleryInfo.tgList = (ArrayList<String>) tgArray.toJavaList(String.class);
+                }
             } catch (ClassCastException ignore) {
             }
         }

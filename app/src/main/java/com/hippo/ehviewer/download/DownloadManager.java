@@ -34,6 +34,9 @@ import com.hippo.ehviewer.Settings;
 import com.hippo.ehviewer.client.data.GalleryInfo;
 import com.hippo.ehviewer.dao.DownloadInfo;
 import com.hippo.ehviewer.dao.DownloadLabel;
+import com.hippo.ehviewer.dao.GalleryTags;
+import com.hippo.ehviewer.library.LibraryManifest;
+import com.hippo.ehviewer.library.LibraryScanner;
 import com.hippo.ehviewer.spider.SpiderDen;
 import com.hippo.ehviewer.spider.SpiderInfo;
 import com.hippo.ehviewer.spider.SpiderQueen;
@@ -800,6 +803,7 @@ public class DownloadManager implements SpiderQueen.OnSpiderListener {
 
                     try {
                         spiderInfo.write(file.openOutputStream());
+                        LibraryManifest.write(downloadInfo, spiderInfo, downloadDir);
                     } catch (IOException e) {
                         Log.e(TAG, "Can't write SpiderInfo", e);
                     }
@@ -969,6 +973,112 @@ public class DownloadManager implements SpiderQueen.OnSpiderListener {
 
         mLabelList.add(EhDB.addDownloadLabel(label));
         mMap.put(label, new LinkedList<>());
+    }
+
+    public void syncLocalLibrary(@NonNull LibraryScanner.Result result) {
+        UniFile root = Settings.getDownloadLocation();
+        for (LibraryScanner.Item item : result.items) {
+            DownloadInfo incoming = item.downloadInfo;
+            DownloadInfo existing = mAllInfoMap.get(incoming.gid);
+            if (existing == null) {
+                addSyncedDownload(incoming);
+                result.imported++;
+                existing = incoming;
+            } else {
+                mergeSyncedDownload(existing, incoming);
+                EhDB.putDownloadInfo(existing);
+                result.updated++;
+            }
+
+            if (item.dirname != null) {
+                EhDB.putDownloadDirname(existing.gid, item.dirname);
+            }
+            syncGalleryTags(item.galleryTags);
+            UniFile dir = root != null && item.dirname != null
+                    ? root.subFile(item.dirname)
+                    : SpiderDen.getGalleryDownloadDir(existing);
+            if (dir != null && dir.isDirectory()) {
+                LibraryManifest.write(existing, item.spiderInfo, dir);
+            }
+        }
+
+        Collections.sort(mAllInfoList, DATE_DESC_COMPARATOR);
+        Collections.sort(mDefaultInfoList, DATE_DESC_COMPARATOR);
+        for (LinkedList<DownloadInfo> list : mMap.values()) {
+            Collections.sort(list, DATE_DESC_COMPARATOR);
+        }
+        for (DownloadInfoListener l : mDownloadInfoListeners) {
+            l.onReload();
+            l.onUpdateLabels();
+        }
+    }
+
+    private void addSyncedDownload(@NonNull DownloadInfo info) {
+        if (info.label != null && !containLabel(info.label)) {
+            addLabelInSyncThread(info.label);
+        }
+        LinkedList<DownloadInfo> list = getInfoListForLabel(info.label);
+        if (list == null) {
+            info.label = null;
+            list = mDefaultInfoList;
+        }
+        list.add(info);
+        mAllInfoList.add(info);
+        mAllInfoMap.put(info.gid, info);
+        EhDB.putDownloadInfo(info);
+        if (info.label != null) {
+            Long count = mLabelCountMap.get(info.label);
+            mLabelCountMap.put(info.label, count == null ? 1L : count + 1L);
+        }
+    }
+
+    private static void mergeSyncedDownload(@NonNull DownloadInfo existing,
+            @NonNull DownloadInfo incoming) {
+        int oldState = existing.state;
+        String oldLabel = existing.label;
+        long oldTime = existing.time;
+
+        existing.updateInfo(incoming);
+        existing.pages = incoming.pages;
+        existing.rated = incoming.rated;
+        existing.thumbWidth = incoming.thumbWidth;
+        existing.thumbHeight = incoming.thumbHeight;
+        existing.spanSize = incoming.spanSize;
+        existing.spanIndex = incoming.spanIndex;
+        existing.spanGroupIndex = incoming.spanGroupIndex;
+        existing.favoriteSlot = incoming.favoriteSlot;
+        existing.favoriteName = incoming.favoriteName;
+        existing.tgList = incoming.tgList;
+        existing.archiveUri = incoming.archiveUri;
+        existing.finished = incoming.finished;
+        existing.downloaded = incoming.downloaded;
+        existing.total = incoming.total;
+        existing.legacy = incoming.legacy;
+        existing.remaining = incoming.remaining;
+        existing.speed = incoming.speed;
+
+        existing.label = oldLabel;
+        existing.time = oldTime > 0 ? oldTime : incoming.time;
+        if (oldState == DownloadInfo.STATE_WAIT || oldState == DownloadInfo.STATE_DOWNLOAD) {
+            existing.state = oldState;
+        } else {
+            existing.state = incoming.state;
+        }
+    }
+
+    private static void syncGalleryTags(@Nullable GalleryTags tags) {
+        if (tags == null) {
+            return;
+        }
+        if (EhDB.inGalleryTags(tags.gid)) {
+            GalleryTags existing = EhDB.queryGalleryTags(tags.gid);
+            if (existing != null && existing.create_time != null) {
+                tags.create_time = existing.create_time;
+            }
+            EhDB.updateGalleryTags(tags);
+        } else {
+            EhDB.insertGalleryTags(tags);
+        }
     }
 
     public void moveLabel(int fromPosition, int toPosition) {
@@ -1290,6 +1400,7 @@ public class DownloadManager implements SpiderQueen.OnSpiderListener {
                     }
                     // Update in DB
                     EhDB.putDownloadInfo(info);
+                    LibraryManifest.write(info, SpiderInfo.getSpiderInfo(info));
                     // Notify
                     if (mDownloadListener != null) {
                         mDownloadListener.onFinish(info);

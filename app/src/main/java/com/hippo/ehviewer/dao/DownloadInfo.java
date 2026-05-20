@@ -262,7 +262,7 @@ public class DownloadInfo extends GalleryInfo {
 	}
 
 	public static DownloadInfo downloadInfoFromJson(JSONObject object) throws ClassCastException {
-		DownloadInfo downloadInfo = (DownloadInfo) GalleryInfo.galleryInfoFromJson(object);
+		DownloadInfo downloadInfo = GalleryInfo.galleryInfoFromJson(object).getDownloadInfo(null);
 		downloadInfo.finished = object.getIntValue("finished");
 		downloadInfo.legacy = object.getIntValue("legacy");
 		downloadInfo.label = object.getString("label");
