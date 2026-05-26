@@ -21,8 +21,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public final class LibraryScanner {
 
@@ -172,14 +174,15 @@ public final class LibraryScanner {
         }
 
         GalleryTags galleryTags = new GalleryTags(info.gid);
+        Set<String> seenTags = new HashSet<>();
         if (tags != null) {
             for (String tag : tags) {
-                addTag(galleryTags, tag);
+                addTag(galleryTags, seenTags, tag);
             }
         }
         if (simpleTags != null) {
             for (String tag : simpleTags) {
-                addTag(galleryTags, tag);
+                addTag(galleryTags, seenTags, tag);
             }
         }
         Date now = new Date();
@@ -188,8 +191,12 @@ public final class LibraryScanner {
         return galleryTags;
     }
 
-    private static void addTag(@NonNull GalleryTags tags, @Nullable String tag) {
+    private static void addTag(@NonNull GalleryTags tags, @NonNull Set<String> seenTags,
+            @Nullable String tag) {
         if (tag == null) {
+            return;
+        }
+        if (!seenTags.add(tag)) {
             return;
         }
         int index = tag.indexOf(':');

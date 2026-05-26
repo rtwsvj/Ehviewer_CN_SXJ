@@ -60,6 +60,7 @@ public class LibraryScannerTest {
         info.time = 99L;
         info.tgList = new ArrayList<>();
         info.tgList.add("female:foo");
+        info.simpleTags = new String[] {"female:foo", "artist:bar"};
 
         SpiderInfo spiderInfo = new SpiderInfo();
         spiderInfo.gid = info.gid;
@@ -83,6 +84,7 @@ public class LibraryScannerTest {
         GalleryTags tags = EhDB.queryGalleryTags(100L);
         assertNotNull(tags);
         assertEquals("foo", tags.female);
+        assertEquals("bar", tags.artist);
 
         LibraryScanner.Result second = LibraryScanner.scan(UniFile.fromFile(rootFile));
         manager.syncLocalLibrary(second);
