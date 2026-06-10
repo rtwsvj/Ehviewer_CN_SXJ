@@ -28,7 +28,6 @@ import androidx.annotation.Nullable;
 
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
-import java.security.SecureRandom;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -52,15 +51,17 @@ final class SecureCookieStorage {
                 .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
 
-    synchronized void put(String name, String value) {
+    synchronized boolean put(String name, String value) {
         if (TextUtils.isEmpty(value)) {
             remove(name);
-            return;
+            return true;
         }
         try {
             preferences.edit().putString(KEY_PREFIX + name, encrypt(value)).apply();
+            return true;
         } catch (Throwable t) {
             Log.e(TAG, "Failed to store identity cookie securely", t);
+            return false;
         }
     }
 
@@ -109,11 +110,12 @@ final class SecureCookieStorage {
     }
 
     private static String encrypt(String plainText) throws Exception {
-        byte[] iv = new byte[GCM_IV_BYTES];
-        new SecureRandom().nextBytes(iv);
-
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey(), new GCMParameterSpec(GCM_TAG_BITS, iv));
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey());
+        byte[] iv = cipher.getIV();
+        if (iv == null || iv.length != GCM_IV_BYTES) {
+            throw new IllegalStateException("Invalid AES-GCM IV");
+        }
         byte[] encrypted = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
         return Base64.encodeToString(iv, Base64.NO_WRAP) + ':'
                 + Base64.encodeToString(encrypted, Base64.NO_WRAP);

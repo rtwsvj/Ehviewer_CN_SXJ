@@ -3,7 +3,9 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "org.jetbrains.kotlin.plugin.parcelize"
 apply plugin: "org.jetbrains.kotlin.kapt"
 apply plugin: "com.jaredsburrows.license"
-if (file('google-services.json').exists()) {
+
+def enableFirebaseTelemetry = (findProperty('enableFirebaseTelemetry') ?: 'false').toString().toBoolean()
+if (enableFirebaseTelemetry && file('google-services.json').exists()) {
     apply plugin: 'com.google.gms.google-services'
     apply plugin: 'com.google.firebase.crashlytics'
 }
@@ -12,26 +14,21 @@ android {
     namespace 'com.hippo.ehviewer'
     testNamespace 'com.hippo.ehviewer.debug'
     compileSdk 35
-//    buildToolsVersion "30.0.3"
-//    ndkVersion '26.1.10909125'
 
     flavorDimensions "distribute"
     productFlavors {
         appRelease {
             dimension "distribute"
         }
-//        googlePlay {
-//            dimension "distribute"
-//        }
     }
 
     defaultConfig {
         applicationId "com.xjs.ehviewer"
         minSdkVersion 23
-        //noinspection ExpiredTargetSdkVersion
-        targetSdkVersion 30
+        targetSdkVersion 35
         versionCode 111
         versionName "2.0.1.7"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         resourceConfigurations += ['zh', 'zh-rCN', 'zh-rHK', 'zh-rTW', 'es', 'ja', 'ko', 'fr', 'de', 'th']
         testOptions.unitTests.includeAndroidResources = true
@@ -42,7 +39,6 @@ android {
         }
         externalNativeBuild {
             cmake {
-//                path 'src/main/cpp/CMakeLists.txt'
                 cppFlags ''
             }
         }
@@ -68,15 +64,9 @@ android {
 
     externalNativeBuild {
         cmake {
-//            version '3.30.5'
             path file('src/main/cpp/CMakeLists.txt')
         }
     }
-//    sourceSets {
-//        main {
-//            java.srcDirs += 'src/main/java-gen'
-//        }
-//    }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_21
@@ -92,36 +82,23 @@ android {
     }
 
 }
-
-//tasks.withType(JavaCompile) {
-//    task -> task.dependsOn copyNotice
-//}
-
 dependencies {
-//    测试工具
-//    debugCompileOnly 'com.gu.android:toolargetool:0.3.0'
-
     implementation 'com.google.android.material:material:1.13.0'
 
-    // app使用情况数据收集
-    // Import the BoM for the Firebase platform
-//    implementation platform('com.google.firebase:firebase-bom:32.1.0')
-
-    // Add the dependencies for the Crashlytics and Analytics libraries
-    // When using the BoM, you don't specify versions in Firebase library dependencies
-    implementation 'com.google.firebase:firebase-crashlytics:20.0.3'
-    implementation 'com.google.firebase:firebase-analytics:23.0.0'
-//    implementation 'com.google.firebase:firebase-analytics:21.5.1'
+    if (enableFirebaseTelemetry) {
+        implementation 'com.google.firebase:firebase-crashlytics:20.0.3'
+        implementation 'com.google.firebase:firebase-analytics:23.0.0'
+    }
 
     implementation fileTree(include: ['*.jar'], dir: 'libs')
-    implementation "androidx.activity:activity:1.2.4"
+    implementation "androidx.activity:activity:1.10.1"
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.biometric:biometric:1.2.0-alpha01'
-    implementation "androidx.browser:browser:1.4.0"
+    implementation "androidx.browser:browser:1.8.0"
     implementation 'androidx.cardview:cardview:1.0.0'
     implementation "androidx.fragment:fragment:1.8.6"
     implementation "androidx.preference:preference-ktx:1.2.1"
-    implementation 'androidx.recyclerview:recyclerview:1.2.1'
+    implementation 'androidx.recyclerview:recyclerview:1.4.0'
     implementation 'org.conscrypt:conscrypt-android:2.5.3'
     // https://mvnrepository.com/artifact/androidx.core/core-ktx
     implementation 'androidx.core:core-ktx:1.15.0'
@@ -188,6 +165,8 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.16.1'
     testImplementation 'org.jooq:joor:0.9.6'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
 
     // https://mvnrepository.com/artifact/androidx.webkit/webkit
     runtimeOnly group: 'androidx.webkit', name: 'webkit', version: '1.13.0'

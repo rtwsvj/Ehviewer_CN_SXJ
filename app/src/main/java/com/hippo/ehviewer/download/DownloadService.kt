@@ -29,6 +29,7 @@ import android.os.IBinder
 import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.IntDef
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import com.hippo.ehviewer.EhApplication
 import com.hippo.ehviewer.R
@@ -107,6 +108,13 @@ class DownloadService : Service(), DownloadManager.DownloadListener {
         } catch (_: NullPointerException) {
         }
         return START_STICKY
+    }
+
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        Log.w(TAG, "Foreground download service timed out: startId=$startId type=$fgsType")
+        mDownloadManager?.stopAllDownload()
+        stopSelf(startId)
     }
 
     private fun handleIntent(intent: Intent?) {
@@ -580,6 +588,7 @@ class DownloadService : Service(), DownloadManager.DownloadListener {
     }
 
     companion object {
+        private const val TAG = "DownloadService"
         const val ACTION_START: String = "start"
         const val ACTION_START_RANGE: String = "start_range"
         const val ACTION_START_ALL: String = "start_all"

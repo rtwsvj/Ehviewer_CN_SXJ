@@ -61,6 +61,7 @@
     <string name="i_will_check_it">好的</string>
     <string name="i_dont_think_so">我没输错</string>
     <string name="found_cookies">找到旧版 Cookie</string>
+    <string name="identity_cookie_secure_storage_unavailable">安全 Cookie 存储不可用。本次登录只在当前会话内有效，重启后需要重新登录。</string>
 
     <string name="invalid_download_location">似乎下载路径不可用。请到重新设置下载路径。</string>
 
@@ -100,6 +101,9 @@
     <string name="error_please_login_first">请先登陆</string>
     <string name="error_empty_html">页面内容为空</string>
     <string name="error_cant_get_image">无法获取图片</string>
+    <string name="error_insufficient_gp">GP 不足</string>
+    <string name="error_origin_image_url_failed">原图链接获取失败</string>
+    <string name="error_suspected_hijack">链接疑似被劫持</string>
     <string name="error_igneous_wrong">错误的igneous\n检查账号里站权限后重新登录</string>
     <string name="gallery_gl_fallback_title">OpenGL 渲染器不可用</string>
     <string name="gallery_gl_fallback_message">当前设备暂时无法初始化 EGL。请返回后稍后重试。</string>
@@ -118,6 +122,8 @@
     <string name="press_twice_exit">再按一次退出</string>
     <string name="content_layout_restore_tip">点击重试</string>
     <string name="write_rationale">EhViewer 将申请设备存储空间访问权限以便下载画廊。您愿意授权吗？</string>
+    <string name="notification_rationale">EhViewer 需要通知权限来显示下载进度和下载完成提示。您愿意授权吗？</string>
+    <string name="notification_permission_rejected">下载通知已关闭</string>
     <string name="you_rejected_me">好痛</string>
     <string name="analytics_explain">您同意让开发者收集您的设备信息与使用情况吗？这将对开发有很大帮助。&lt;br&gt;&lt;br&gt;数据统计服务由 Google Analytics for Firebase 提供，其隐私政策可在 &lt;a href=&quot;https://www.google.com/policies/privacy/&quot;&gt;https://www.google.com/policies/privacy/&lt;/a&gt; 查看。&lt;br&gt;&lt;br&gt;若您同意参与数据统计，您的设备信息与应用使用情况将会被记录，其包括但不限于：Android API 版本、设备型号、语言所在地、本应用版本号、会话时长、应用功能使用次数。开发者承诺以下信息并不会被记录：电话号码、电子邮件地址、IMEI。&lt;br&gt;&lt;br&gt;在您同意参与数据统计之前，您的信息不会被记录。&lt;br&gt;&lt;br&gt;被记录的数据会由 Google Analytics for Firebase 进行分析，分析报表仅可被本应用开发者访问。</string>
     <string name="get_it">知道了</string>
@@ -359,7 +365,7 @@
     <string name="download_state_failed_2">%d 未完成</string>
     <string name="download_state_finish">已完成</string>
     <string name="stat_509_alert_title">509 警告</string>
-    <string name="stat_509_alert_text">图片配额已用尽。请停止下载，休息一下。</string>
+    <string name="stat_509_alert_text">图片配额已用尽，已暂停全部下载。请等待一段时间后手动恢复。</string>
     <string name="stat_download_done_title">下载结束</string>
     <string name="stat_download_done_text_succeeded">%d 项下载成功</string>
     <string name="stat_download_done_text_failed">%d 项下载失败</string>
@@ -617,6 +623,7 @@
     <string name="settings_download_rebuild_local_library_summary">扫描本地库路径，将 manifest 恢复到下载列表</string>
     <string name="settings_download_rebuild_local_library_running">正在重建本地库索引</string>
     <string name="settings_download_rebuild_local_library_done">本地库索引已重建：导入 %1$d，更新 %2$d，跳过 %3$d，失败 %4$d</string>
+    <string name="settings_download_rebuild_local_library_warning">%1$s\n警告：%2$s</string>
     <string name="settings_download_export_library_zip">导出本地库 zip</string>
     <string name="settings_download_export_library_zip_summary">将已下载作品和 manifest 打包为一个 zip</string>
     <string name="settings_download_export_library_cbz">将已下载作品导出为 CBZ</string>
@@ -963,6 +970,13 @@
     <string name="settings_download_timeout">下载超时时间</string>
     <string name="download_timeout_unlimited">无上限</string>
     <string name="settings_download_timeout_summary">%s 秒，下载一张图片的最大可用时长。</string>
+    <string name="settings_download_request_governor">礼貌请求治理</string>
+    <string name="settings_download_request_governor_summary_on">限制请求速率，并在图片配额信号后暂停</string>
+    <string name="settings_download_request_governor_summary_off">请求治理已关闭</string>
+    <string name="settings_download_request_governor_delay">请求间隔</string>
+    <string name="settings_download_request_governor_delay_summary">请求之间至少间隔 %s 毫秒</string>
+    <string name="settings_download_request_governor_cooldown">限额冷却</string>
+    <string name="settings_download_request_governor_cooldown_summary">509/429 信号后冷却 %s 分钟</string>
     <string name="have_new_version">点击查看新的画廊版本</string>
     <string name="archiver_downloading">档案下载中 %s</string>
     <string name="order">排序</string>

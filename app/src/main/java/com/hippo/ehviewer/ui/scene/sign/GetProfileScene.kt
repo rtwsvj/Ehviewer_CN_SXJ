@@ -6,7 +6,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.webkit.CookieManager
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -20,6 +19,7 @@ import com.hippo.ehviewer.R
 import com.hippo.ehviewer.Settings
 import com.hippo.ehviewer.client.EhRequestBuilder
 import com.hippo.ehviewer.client.EhUrl
+import com.hippo.ehviewer.client.WebViewCookieBridge
 import com.hippo.ehviewer.client.exception.ParseException
 import com.hippo.ehviewer.client.parser.ProfileParser
 import com.hippo.ehviewer.ui.scene.SolidScene
@@ -69,8 +69,6 @@ class GetProfileScene : SolidScene() {
             mWebView = WebView(context!!)
             val webSettings = mWebView!!.settings
             webSettings.javaScriptEnabled = true
-            val manager = CookieManager.getInstance()
-            manager.setAcceptCookie(true)
 
             if (Settings.getDF()&& AppHelper.checkVPN(context)){
                 mWebView!!.webViewClient = ProfileWebViewClientSNI(mWebView!!)
@@ -78,7 +76,9 @@ class GetProfileScene : SolidScene() {
                 mWebView!!.webViewClient = ProfileWebViewClient()
             }
 
-            mWebView!!.loadUrl(EhUrl.URL_FORUMS)
+            WebViewCookieBridge.injectCookiesFromStore(context, EhUrl.URL_FORUMS, true) {
+                mWebView?.loadUrl(EhUrl.URL_FORUMS)
+            }
 
             mWebView
         } catch (t: Throwable) {
@@ -94,6 +94,16 @@ class GetProfileScene : SolidScene() {
             }
             root
         }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+
+        if (mWebView != null) {
+            mWebView!!.destroy()
+            mWebView = null
+        }
+        WebViewCookieBridge.clear()
     }
 
 
@@ -227,8 +237,6 @@ class GetProfileScene : SolidScene() {
         override fun onPageFinished(view: WebView, url: String) {
             ehContext ?: return
             HttpUrl.parse(url) ?: return
-            val manager = CookieManager.getInstance()
-            manager.getCookie(EhUrl.HOST_E)
             readPageContent()
 //            var getId = false
 //            var getHash = false
@@ -400,14 +408,8 @@ class GetProfileScene : SolidScene() {
          * 方案六：Cookie 同步增强
          */
         private fun syncCookiesFromResponse(response: Response, url: String) {
-            val cookies = response.headers("Set-Cookie")
-            if (cookies.isNotEmpty()) {
-                val cookieManager = CookieManager.getInstance()
-                for (cookie in cookies) {
-                    cookieManager.setCookie(url, cookie)
-                }
-                cookieManager.flush()
-            }
+            WebViewCookieBridge.saveSetCookieHeadersToWebView(url, response.headers("Set-Cookie"),
+                true)
         }
 
         fun convertOkHttpResponse(okHttpResponse: Response): WebResourceResponse {
@@ -529,27 +531,6 @@ class GetProfileScene : SolidScene() {
     private inner class ProfileWebViewClient : WebViewClient() {
 
         override fun onPageFinished(view: WebView, url: String) {
-//            val context: Context =  ehContext ?: return
-//            val httpUrl = HttpUrl.parse(url) ?: return
-
-//            val cookieString = CookieManager.getInstance().getCookie(EhUrl.HOST_E)
-//            val cookies = parseCookies(httpUrl, cookieString)
-            var getId = false
-            var getHash = false
-//            for (cookie in cookies) {
-//                if (EhCookieStore.KEY_IPD_MEMBER_ID == cookie.name()) {
-//                    getId = true
-//                } else if (EhCookieStore.KEY_IPD_PASS_HASH == cookie.name()) {
-//                    getHash = true
-//                }
-//                addCookie(context, EhUrl.DOMAIN_EX, cookie)
-//                addCookie(context, EhUrl.DOMAIN_E, cookie)
-//            }
-
-            if (getId && getHash) {
-                setResult(RESULT_OK, null)
-                finish()
-            }
             readPageContent()
         }
 

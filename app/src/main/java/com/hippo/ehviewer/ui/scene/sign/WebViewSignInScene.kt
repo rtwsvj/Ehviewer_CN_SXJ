@@ -22,6 +22,7 @@ import com.hippo.ehviewer.client.EhCookieStore
 import com.hippo.ehviewer.client.EhRequestBuilder
 import com.hippo.ehviewer.client.EhUrl
 import com.hippo.ehviewer.client.EhUtils
+import com.hippo.ehviewer.client.WebViewCookieBridge
 import com.hippo.ehviewer.R
 import com.hippo.ehviewer.ui.scene.SolidScene
 import androidx.appcompat.app.AlertDialog
@@ -66,17 +67,13 @@ class WebViewSignInScene : SolidScene() {
 
         return try {
             // http://stackoverflow.com/questions/32284642/how-to-handle-an-uncatched-exception
-            val cookieManager = CookieManager.getInstance()
-            cookieManager.flush()
-            cookieManager.removeAllCookies(null)
-            cookieManager.removeSessionCookies(null)
-            CookieManager.getInstance().setAcceptCookie(true)
-
             mWebView = WebView(context)
             val webSettings = mWebView!!.settings
             webSettings.javaScriptEnabled = true
             mWebView!!.webViewClient = LoginWebViewClient()
-            mWebView!!.loadUrl(EhUrl.URL_SIGN_IN)
+            WebViewCookieBridge.clear {
+                mWebView?.loadUrl(EhUrl.URL_SIGN_IN)
+            }
             mWebView
         } catch (t: Throwable) {
             Log.e(TAG, "WebView/CookieManager init failed", t)
@@ -100,6 +97,7 @@ class WebViewSignInScene : SolidScene() {
             mWebView!!.destroy()
             mWebView = null
         }
+        WebViewCookieBridge.clear()
     }
 
     private inner class LoginWebViewClientSNI : RequestInspectorWebViewClient {
@@ -154,6 +152,9 @@ class WebViewSignInScene : SolidScene() {
                 if (response.body() == null) {
                     throw IOException("请求结果为空")
                 }
+                WebViewCookieBridge.saveSetCookieHeadersToWebView(
+                    request.url, response.headers("Set-Cookie"), true
+                )
                 return convertOkHttpResponse(response)
             } catch (e: IOException) {
                 Analytics.recordException(e)

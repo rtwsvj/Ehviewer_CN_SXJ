@@ -72,19 +72,22 @@ public final class LibraryScanner {
     @Nullable
     private static Item scanDirectory(@NonNull UniFile dir, @NonNull Result result) {
         LibraryManifest.Record record = LibraryManifest.read(dir);
-        if (record == null) {
-            record = readLegacySpiderInfo(dir);
+        if (record != null && record.warning != null) {
+            result.warnings.add(buildWarning(dir, record.warning));
         }
-        if (record == null) {
-            result.skipped++;
-            return null;
-        }
-        if (record.warning != null) {
-            result.warnings.add(record.warning);
+        if (record == null || record.downloadInfo == null) {
+            LibraryManifest.Record legacyRecord = readLegacySpiderInfo(dir);
+            if (legacyRecord != null) {
+                record = legacyRecord;
+            } else if (record == null) {
+                result.skipped++;
+                return null;
+            }
         }
         DownloadInfo info = record.downloadInfo;
-        if (info == null || info.gid <= 0 || info.token == null) {
+        if (info == null || info.gid <= 0 || info.token == null || info.token.length() == 0) {
             result.failed++;
+            result.warnings.add(buildWarning(dir, "manifest missing gid/token"));
             return null;
         }
 
@@ -108,6 +111,12 @@ public final class LibraryScanner {
         GalleryTags tags = buildGalleryTags(info);
         return new Item(record.dirname, info, spiderInfo, tags, imageCount, complete,
                 record.fromManifest, record.fromLegacySpiderInfo);
+    }
+
+    @NonNull
+    private static String buildWarning(@NonNull UniFile dir, @NonNull String warning) {
+        String name = dir.getName();
+        return (name != null && name.length() > 0 ? name : "unknown directory") + ": " + warning;
     }
 
     @Nullable

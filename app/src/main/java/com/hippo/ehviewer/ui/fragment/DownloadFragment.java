@@ -83,6 +83,9 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
         Preference downloadThread = findPreference("download_thread");
         Preference imageResolution = findPreference(Settings.KEY_IMAGE_RESOLUTION);
         Preference downloadTimeout = findPreference(Settings.KEY_DOWNLOAD_TIMEOUT);
+        Preference requestGovernorDelay = findPreference(Settings.KEY_REQUEST_GOVERNOR_DELAY_MS);
+        Preference requestGovernorCooldown = findPreference(
+                Settings.KEY_REQUEST_GOVERNOR_COOLDOWN_MINUTES);
         mDownloadLocation = findPreference(KEY_DOWNLOAD_LOCATION);
         Preference exportDownloadItems = findPreference(KEY_EXPORT_DOWNLOAD_ITEMS);
         Preference importDownloadItems = findPreference(KEY_IMPORT_DOWNLOAD_ITEMS);
@@ -106,6 +109,16 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
             String timeoutStr = Settings.getDownloadTimeout() == 0 ? getString(R.string.download_timeout_unlimited) : String.valueOf(Settings.getDownloadTimeout());
             downloadTimeout.setSummary(getString(R.string.settings_download_timeout_summary, timeoutStr));
         }
+        if (requestGovernorDelay != null) {
+            requestGovernorDelay.setSummary(getString(
+                    R.string.settings_download_request_governor_delay_summary,
+                    String.valueOf(Settings.getRequestGovernorDelayMs())));
+        }
+        if (requestGovernorCooldown != null) {
+            requestGovernorCooldown.setSummary(getString(
+                    R.string.settings_download_request_governor_cooldown_summary,
+                    String.valueOf(Settings.getRequestGovernorCooldownMinutes())));
+        }
         if(preloadImage != null){
             preloadImage.setSummary(getString(R.string.settings_download_preload_image_summary, String.valueOf(Settings.getPreloadImage())));
         }
@@ -122,6 +135,12 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
         }
         if (downloadTimeout != null) {
             downloadTimeout.setOnPreferenceChangeListener(this);
+        }
+        if (requestGovernorDelay != null) {
+            requestGovernorDelay.setOnPreferenceChangeListener(this);
+        }
+        if (requestGovernorCooldown != null) {
+            requestGovernorCooldown.setOnPreferenceChangeListener(this);
         }
 
         if (mDownloadLocation != null) {
@@ -383,6 +402,22 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
                 Settings.setDownloadTimeout(toTimeoutTime(newValue));
             }
             return true;
+        } else if (Settings.KEY_REQUEST_GOVERNOR_DELAY_MS.equals(key)) {
+            if (newValue instanceof String) {
+                Settings.putRequestGovernorDelayMs(toTimeoutTime(newValue));
+            }
+            preference.setSummary(getString(
+                    R.string.settings_download_request_governor_delay_summary,
+                    String.valueOf(Settings.getRequestGovernorDelayMs())));
+            return true;
+        } else if (Settings.KEY_REQUEST_GOVERNOR_COOLDOWN_MINUTES.equals(key)) {
+            if (newValue instanceof String) {
+                Settings.putRequestGovernorCooldownMinutes(toTimeoutTime(newValue));
+            }
+            preference.setSummary(getString(
+                    R.string.settings_download_request_governor_cooldown_summary,
+                    String.valueOf(Settings.getRequestGovernorCooldownMinutes())));
+            return true;
         }
         return false;
     }
@@ -442,10 +477,13 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
             }
 
             EhApplication.getDownloadManager(fragment.requireActivity()).syncLocalLibrary(result);
-            Toast.makeText(fragment.requireActivity(),
-                    fragment.getString(R.string.settings_download_rebuild_local_library_done,
-                            result.imported, result.updated, result.skipped, result.failed),
-                    Toast.LENGTH_LONG).show();
+            String message = fragment.getString(R.string.settings_download_rebuild_local_library_done,
+                    result.imported, result.updated, result.skipped, result.failed);
+            if (!result.warnings.isEmpty()) {
+                message = fragment.getString(R.string.settings_download_rebuild_local_library_warning,
+                        message, result.warnings.get(0));
+            }
+            Toast.makeText(fragment.requireActivity(), message, Toast.LENGTH_LONG).show();
         }
     }
 

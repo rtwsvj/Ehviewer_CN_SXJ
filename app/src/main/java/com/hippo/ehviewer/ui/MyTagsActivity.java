@@ -18,28 +18,21 @@ package com.hippo.ehviewer.ui;
 
 import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
-import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
-import android.webkit.CookieManager;
-import android.webkit.CookieSyncManager;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 
-import com.hippo.ehviewer.EhApplication;
 import com.hippo.ehviewer.R;
-import com.hippo.ehviewer.client.EhCookieStore;
 import com.hippo.ehviewer.client.EhUrl;
+import com.hippo.ehviewer.client.WebViewCookieBridge;
 import com.hippo.ehviewer.widget.DialogWebChromeClient;
 import com.hippo.widget.ProgressView;
-
-import okhttp3.Cookie;
-import okhttp3.HttpUrl;
 
 public class MyTagsActivity extends ToolbarActivity {
 
@@ -55,18 +48,7 @@ public class MyTagsActivity extends ToolbarActivity {
         super.onCreate(savedInstanceState);
 
         try {
-            // http://stackoverflow.com/questions/32284642/how-to-handle-an-uncatched-exception
-            CookieManager cookieManager = CookieManager.getInstance();
-            cookieManager.flush();
-            cookieManager.removeAllCookies(null);
-            cookieManager.removeSessionCookies(null);
-
-            // Copy cookies from okhttp cookie store to CookieManager
             url = EhUrl.getMyTagsUrl();
-            EhCookieStore store = EhApplication.getEhCookieStore(this);
-            for (Cookie cookie : store.getCookies(HttpUrl.parse(url))) {
-                cookieManager.setCookie(url, cookie.toString());
-            }
 
             setContentView(R.layout.activity_my_tags);
             setNavigationIcon(R.drawable.v_arrow_left_dark_x24);
@@ -74,7 +56,11 @@ public class MyTagsActivity extends ToolbarActivity {
             webView.getSettings().setJavaScriptEnabled(true);
             webView.setWebViewClient(new MyTagsWebViewClient());
             webView.setWebChromeClient(new DialogWebChromeClient(this));
-            webView.loadUrl(url);
+            WebViewCookieBridge.injectCookiesFromStore(this, url, true, () -> {
+                if (webView != null) {
+                    webView.loadUrl(url);
+                }
+            });
             progress = findViewById(R.id.progress);
         } catch (Throwable t) {
             Log.e(TAG, "WebView/CookieManager init failed", t);
@@ -85,6 +71,16 @@ public class MyTagsActivity extends ToolbarActivity {
                     .setOnCancelListener(d -> finish())
                     .show();
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (webView != null) {
+            webView.destroy();
+            webView = null;
+        }
+        WebViewCookieBridge.clear();
     }
 
     @Override

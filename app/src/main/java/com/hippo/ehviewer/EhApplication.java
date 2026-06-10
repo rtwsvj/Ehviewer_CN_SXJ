@@ -31,7 +31,6 @@ import android.os.Debug;
 import android.text.method.LinkMovementMethod;
 import android.util.Log;
 import android.view.View;
-import android.webkit.CookieManager;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -49,6 +48,8 @@ import com.hippo.ehviewer.client.EhClient;
 import com.hippo.ehviewer.client.EhCookieStore;
 import com.hippo.ehviewer.client.EhHosts;
 import com.hippo.ehviewer.client.EhEngine;
+import com.hippo.ehviewer.client.RequestGovernor;
+import com.hippo.ehviewer.client.WebViewCookieBridge;
 import com.hippo.ehviewer.client.data.EhNewsDetail;
 import com.hippo.ehviewer.client.data.GalleryDetail;
 import com.hippo.ehviewer.client.data.userTag.UserTagList;
@@ -95,7 +96,6 @@ import javax.net.ssl.X509TrustManager;
 import okhttp3.Cache;
 import okhttp3.ConnectionSpec;
 import okhttp3.OkHttpClient;
-import okhttp3.Response;
 
 public class EhApplication extends RecordingApplication {
 
@@ -184,6 +184,7 @@ public class EhApplication extends RecordingApplication {
 //        Image1.initialize(this);
         Image.initialize(this);
         Native.initialize();
+        WebViewCookieBridge.clear();
         // 实际作用不确定，但是与64位应用有冲突
 //        A7Zip.loadLibrary(A7ZipExtractLite.LIBRARY, libname -> ReLinker.loadLibrary(EhApplication.this, libname));
         // 64位适配
@@ -385,6 +386,7 @@ public class EhApplication extends RecordingApplication {
 //                    .callTimeout(10, TimeUnit.SECONDS)
                     .cookieJar(getEhCookieStore(application))
                     .cache(getOkHttpCache(application))
+                    .addInterceptor(RequestGovernor.getInstance())
 //                    .hostnameVerifier((hostname, session) -> true)
 //                    .dispatcher(dispatcher)
                     .dns(new EhHosts(application))
@@ -394,23 +396,6 @@ public class EhApplication extends RecordingApplication {
                         } catch (NullPointerException e) {
                             throw new NullPointerException(e.getMessage());
                         }
-                    })
-                    .addNetworkInterceptor(chain -> {
-                        Response response = chain.proceed(chain.request());
-                        // 同步Cookie到WebView
-                        if (response.headers("Set-Cookie") != null) {
-                            try {
-                                CookieManager cookieManager = CookieManager.getInstance();
-                                String url = chain.request().url().toString();
-                                for (String header : response.headers("Set-Cookie")) {
-                                    cookieManager.setCookie(url, header);
-                                }
-                                cookieManager.flush();
-                            } catch (Throwable t) {
-                                Log.e(TAG, "CookieManager/WebView sync skipped", t);
-                            }
-                        }
-                        return response;
                     })
                     .proxySelector(getEhProxySelector(application));
             configureDomainFrontingTls(builder, context);
@@ -475,6 +460,7 @@ public class EhApplication extends RecordingApplication {
                     .callTimeout(20, TimeUnit.SECONDS)
                     .cookieJar(getEhCookieStore(application))
                     .cache(getOkHttpCache(application))
+                    .addInterceptor(RequestGovernor.getInstance())
 //                    .hostnameVerifier((hostname, session) -> true)
                     .dns(new EhHosts(application))
                     .addNetworkInterceptor(sprocket -> {

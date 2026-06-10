@@ -16,20 +16,16 @@
 
 package com.hippo.ehviewer.ui.scene.sign;
 
-import static com.hippo.ehviewer.client.parser.ParserUtils.formatDate;
-
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.webkit.CookieManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -48,10 +44,7 @@ import com.hippo.ehviewer.ui.scene.SolidScene;
 import com.hippo.lib.yorozuya.AssertUtils;
 import com.hippo.lib.yorozuya.ViewUtils;
 
-import java.util.List;
-
 import okhttp3.Cookie;
-import okhttp3.HttpUrl;
 
 public class CookieSignInScene extends SolidScene implements EditText.OnEditorActionListener,
         View.OnClickListener {
@@ -306,68 +299,5 @@ public class CookieSignInScene extends SolidScene implements EditText.OnEditorAc
             store.addCookie(newCookie(EhCookieStore.KEY_IGNEOUS, igneous, EhUrl.DOMAIN_EX));
             store.addCookie(newCookie(EhCookieStore.KEY_IGNEOUS, igneous, EhUrl.DOMAIN_FORUMS));
         }
-        HttpUrl httpUrl = HttpUrl.parse(EhUrl.URL_FORUMS);
-        if (httpUrl == null) {
-            return;
-        }
-        try {
-            CookieManager cookieManager = CookieManager.getInstance();
-            cookieManager.setAcceptCookie(true);
-            List<Cookie> cookies = store.loadForRequest(httpUrl);
-            for (Cookie cookie : cookies) {
-                String cookieString = formatCookieForWebView(cookie);
-                cookieManager.setCookie(EhUrl.DOMAIN_FORUMS, cookieString);
-            }
-            cookieManager.flush();
-        } catch (Throwable t) {
-            Log.e(TAG, "CookieManager/WebView unavailable, OkHttp cookies still stored", t);
-        }
-    }
-
-    /**
-     * 将 OkHttp Cookie 对象转换为 WebView 可接受的字符串格式
-     */
-    private static String formatCookieForWebView(Cookie cookie) {
-        StringBuilder builder = new StringBuilder();
-
-        // 基本格式：name=value
-        builder.append(cookie.name())
-                .append("=")
-                .append(cookie.value());
-
-        // 添加 Domain（如果需要）
-        if (cookie.domain() != null && !cookie.domain().isEmpty()) {
-            builder.append("; Domain=").append(cookie.domain());
-        }
-
-        // 添加 Path
-        if (cookie.path() != null && !cookie.path().isEmpty()) {
-            builder.append("; Path=").append(cookie.path());
-        } else {
-            builder.append("; Path=/");
-        }
-
-        // 添加 Expires/Max-Age
-        if (cookie.persistent()) {
-            if (cookie.expiresAt() > 0) {
-                builder.append("; Expires=")
-                        .append(formatDate(cookie.expiresAt()));
-            }
-//            else if (cookie.maxAge() != Cookie.MAX_AGE) {
-//                builder.append("; Max-Age=").append(cookie.maxAge());
-//            }
-        }
-
-        // 添加 Secure 标志
-        if (cookie.secure()) {
-            builder.append("; Secure");
-        }
-
-        // 添加 HttpOnly 标志
-        if (cookie.httpOnly()) {
-            builder.append("; HttpOnly");
-        }
-
-        return builder.toString();
     }
 }

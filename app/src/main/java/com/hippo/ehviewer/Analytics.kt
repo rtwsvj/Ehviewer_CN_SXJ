@@ -19,36 +19,42 @@ import android.content.Context
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
-import com.google.firebase.analytics.FirebaseAnalytics
-import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.hippo.scene.SceneFragment
 import java.util.Locale
 
 /**
- * google监控
+ * Optional analytics bridge. The default appRelease build does not bundle Firebase;
+ * opt-in telemetry builds can provide Firebase at runtime.
  */
 object Analytics {
     private const val LOG_TAG = "Analytics"
     private const val DEVICE_LANGUAGE = "device_language"
 
-    private var analytics: FirebaseAnalytics? = null
+    private var analytics: Any? = null
+    private var analyticsClass: Class<*>? = null
 
     @JvmStatic
     fun start(context: Context) {
-        analytics = FirebaseAnalytics.getInstance(context)
-        analytics!!.setUserId(Settings.getUserID())
+        if (!Settings.getEnableAnalytics()) {
+            analytics = null
+            analyticsClass = null
+            return
+        }
 
-        val locale = Locale.getDefault()
-        var language = locale.getLanguage()
-        if (TextUtils.isEmpty(language)) {
-            language = "none"
+        try {
+            val clazz = Class.forName("com.google.firebase.analytics.FirebaseAnalytics")
+            val instance = clazz.getMethod("getInstance", Context::class.java)
+                .invoke(null, context)
+            clazz.getMethod("setUserId", String::class.java).invoke(instance, Settings.getUserID())
+            clazz.getMethod("setUserProperty", String::class.java, String::class.java)
+                .invoke(instance, DEVICE_LANGUAGE, deviceLanguage())
+            analytics = instance
+            analyticsClass = clazz
+        } catch (e: Exception) {
+            analytics = null
+            analyticsClass = null
+            Log.i(LOG_TAG, "Firebase analytics unavailable", e)
         }
-        val country = locale.getCountry()
-        if (!TextUtils.isEmpty(country)) {
-            language = language + "-" + country
-        }
-        language = language.lowercase(Locale.getDefault())
-        analytics!!.setUserProperty(DEVICE_LANGUAGE, language)
     }
 
     @JvmStatic
@@ -57,11 +63,20 @@ object Analytics {
 
     @JvmStatic
     fun onSceneView(scene: SceneFragment) {
-        if (isEnabled) {
-            val bundle = Bundle()
-            bundle.putString("scene_simple_class", scene.javaClass.getSimpleName())
-            bundle.putString("scene_class", scene.javaClass.getName())
-            analytics!!.logEvent("scene_view", bundle)
+        val instance = analytics
+        val clazz = analyticsClass
+        if (isEnabled && instance != null && clazz != null) {
+            try {
+                val bundle = Bundle()
+                bundle.putString("scene_simple_class", scene.javaClass.getSimpleName())
+                bundle.putString("scene_class", scene.javaClass.getName())
+                clazz.getMethod("logEvent", String::class.java, Bundle::class.java)
+                    .invoke(instance, "scene_view", bundle)
+            } catch (e: Exception) {
+                analytics = null
+                analyticsClass = null
+                Log.i(LOG_TAG, "Firebase analytics event skipped", e)
+            }
         }
     }
 
@@ -71,12 +86,25 @@ object Analytics {
 
         if (isEnabled) {
             try {
-                FirebaseCrashlytics.getInstance().recordException(e)
+                val clazz = Class.forName("com.google.firebase.crashlytics.FirebaseCrashlytics")
+                val instance = clazz.getMethod("getInstance").invoke(null)
+                clazz.getMethod("recordException", Throwable::class.java).invoke(instance, e)
             } catch (ex: Exception) {
-                // firebase not init or others?
-                // just throw original error
                 Log.e(LOG_TAG, "Firebase error: " + ex)
             }
         }
+    }
+
+    private fun deviceLanguage(): String {
+        val locale = Locale.getDefault()
+        var language = locale.getLanguage()
+        if (TextUtils.isEmpty(language)) {
+            language = "none"
+        }
+        val country = locale.getCountry()
+        if (!TextUtils.isEmpty(country)) {
+            language = "$language-$country"
+        }
+        return language.lowercase(Locale.getDefault())
     }
 }

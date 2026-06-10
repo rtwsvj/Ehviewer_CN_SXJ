@@ -31,6 +31,7 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.ConnectivityManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -45,9 +46,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
-//补一下，不然编译不通过
-import android.os.Build;
-//
+
 import androidx.annotation.IdRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -125,6 +124,7 @@ public final class MainActivity extends StageActivity
         implements NavigationView.OnNavigationItemSelectedListener, ImageChangeCallBack, DrawerLayout.DrawerListener {
 
     private static final int PERMISSION_REQUEST_WRITE_EXTERNAL_STORAGE = 0;
+    private static final int PERMISSION_REQUEST_POST_NOTIFICATIONS = 1;
 
     private static final int REQUEST_CODE_SETTINGS = 0;
 
@@ -531,6 +531,11 @@ public final class MainActivity extends StageActivity
             PermissionRequester.request(this, Manifest.permission.WRITE_EXTERNAL_STORAGE,
                     getString(R.string.write_rationale), PERMISSION_REQUEST_WRITE_EXTERNAL_STORAGE);
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            PermissionRequester.request(this, Manifest.permission.POST_NOTIFICATIONS,
+                    getString(R.string.notification_rationale),
+                    PERMISSION_REQUEST_POST_NOTIFICATIONS);
+        }
         EhCookieStore store = EhApplication.getEhCookieStore(getApplicationContext());
         List<Cookie> eCookies = store.getCookies(HttpUrl.get(EhUrl.HOST_E));
         List<Cookie> exCookies = store.getCookies(HttpUrl.get(EhUrl.HOST_EX));
@@ -651,6 +656,10 @@ public final class MainActivity extends StageActivity
         if (requestCode == PERMISSION_REQUEST_WRITE_EXTERNAL_STORAGE) {
             if (grantResults.length == 1 && grantResults[0] != PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(this, R.string.you_rejected_me, Toast.LENGTH_SHORT).show();
+            }
+        } else if (requestCode == PERMISSION_REQUEST_POST_NOTIFICATIONS) {
+            if (grantResults.length == 1 && grantResults[0] != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, R.string.notification_permission_rejected, Toast.LENGTH_SHORT).show();
             }
         } else {
             super.onRequestPermissionsResult(requestCode, permissions, grantResults);

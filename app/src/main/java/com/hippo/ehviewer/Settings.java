@@ -1311,6 +1311,53 @@ public class Settings {
         putIntToStr(KEY_DOWNLOAD_DELAY, value);
     }
 
+    public static final String KEY_REQUEST_GOVERNOR = "request_governor";
+    private static final boolean DEFAULT_REQUEST_GOVERNOR = true;
+
+    public static boolean getRequestGovernor() {
+        return getBoolean(KEY_REQUEST_GOVERNOR, DEFAULT_REQUEST_GOVERNOR);
+    }
+
+    public static void putRequestGovernor(boolean value) {
+        putBoolean(KEY_REQUEST_GOVERNOR, value);
+    }
+
+    public static final String KEY_REQUEST_GOVERNOR_DELAY_MS = "request_governor_delay_ms";
+    private static final int DEFAULT_REQUEST_GOVERNOR_DELAY_MS = 1500;
+
+    public static int getRequestGovernorDelayMs() {
+        return Math.max(0, getIntFromStr(KEY_REQUEST_GOVERNOR_DELAY_MS,
+                DEFAULT_REQUEST_GOVERNOR_DELAY_MS));
+    }
+
+    public static void putRequestGovernorDelayMs(int value) {
+        putIntToStr(KEY_REQUEST_GOVERNOR_DELAY_MS, value);
+    }
+
+    public static final String KEY_REQUEST_GOVERNOR_COOLDOWN_MINUTES =
+            "request_governor_cooldown_minutes";
+    private static final int DEFAULT_REQUEST_GOVERNOR_COOLDOWN_MINUTES = 30;
+
+    public static int getRequestGovernorCooldownMinutes() {
+        return Math.max(1, getIntFromStr(KEY_REQUEST_GOVERNOR_COOLDOWN_MINUTES,
+                DEFAULT_REQUEST_GOVERNOR_COOLDOWN_MINUTES));
+    }
+
+    public static void putRequestGovernorCooldownMinutes(int value) {
+        putIntToStr(KEY_REQUEST_GOVERNOR_COOLDOWN_MINUTES, value);
+    }
+
+    private static final int DEFAULT_REQUEST_GOVERNOR_FAILURE_BACKOFF_BASE_MS = 2000;
+    private static final int DEFAULT_REQUEST_GOVERNOR_FAILURE_BACKOFF_MAX_MS = 16000;
+
+    public static int getRequestGovernorFailureBackoffBaseMs() {
+        return DEFAULT_REQUEST_GOVERNOR_FAILURE_BACKOFF_BASE_MS;
+    }
+
+    public static int getRequestGovernorFailureBackoffMaxMs() {
+        return DEFAULT_REQUEST_GOVERNOR_FAILURE_BACKOFF_MAX_MS;
+    }
+
     private static final String KEY_IS_LOGIN = "is_login";
 
     private static boolean IS_LOGIN = false;

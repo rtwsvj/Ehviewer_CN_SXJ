@@ -1321,6 +1321,7 @@ public class DownloadManager implements SpiderQueen.OnSpiderListener {
                     break;
                 }
                 case TYPE_ON_GET_509: {
+                    stopAllDownload();
                     if (mDownloadListener != null) {
                         mDownloadListener.onGet509();
                     }

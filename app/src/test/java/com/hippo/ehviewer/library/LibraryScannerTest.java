@@ -142,14 +142,7 @@ public class LibraryScannerTest {
         assertTrue(dirFile.mkdir());
         writeFile(new File(dirFile, "00000001.jpg"));
 
-        SpiderInfo spiderInfo = new SpiderInfo();
-        spiderInfo.gid = 200L;
-        spiderInfo.token = "legacy";
-        spiderInfo.pages = 1;
-        spiderInfo.previewPages = 0;
-        spiderInfo.previewPerPage = 0;
-        spiderInfo.pTokenMap = new SparseArray<>();
-        spiderInfo.write(UniFile.fromFile(dirFile).createFile(SpiderQueen.SPIDER_INFO_FILENAME).openOutputStream());
+        writeSpiderInfo(dirFile, 200L, "legacy", 1);
 
         LibraryScanner.Result result = LibraryScanner.scan(UniFile.fromFile(rootFile));
 
@@ -161,6 +154,72 @@ public class LibraryScannerTest {
         assertTrue(result.items.get(0).fromLegacySpiderInfo);
     }
 
+    @Test
+    public void scanCorruptedManifestFallsBackToLegacySpiderInfo() throws Exception {
+        File rootFile = folder.newFolder("fallback-library");
+        File dirFile = new File(rootFile, "400-legacy");
+        assertTrue(dirFile.mkdir());
+        writeFile(new File(dirFile, "00000001.jpg"));
+        writeFile(new File(dirFile, LibraryManifest.MANIFEST_FILENAME), "{bad json");
+        writeSpiderInfo(dirFile, 400L, "legacy", 1);
+
+        LibraryScanner.Result result = LibraryScanner.scan(UniFile.fromFile(rootFile));
+
+        assertEquals(1, result.scanned);
+        assertEquals(1, result.found);
+        assertEquals(0, result.failed);
+        assertEquals(1, result.items.size());
+        assertEquals(400L, result.items.get(0).downloadInfo.gid);
+        assertTrue(result.items.get(0).fromLegacySpiderInfo);
+        assertTrue(containsWarning(result, "400-legacy: manifest read failed"));
+    }
+
+    @Test
+    public void scanCorruptedManifestWithoutFallbackDoesNotBlockSibling() throws Exception {
+        File rootFile = folder.newFolder("mixed-library");
+        File badDirFile = new File(rootFile, "bad-manifest");
+        assertTrue(badDirFile.mkdir());
+        writeFile(new File(badDirFile, LibraryManifest.MANIFEST_FILENAME), "{bad json");
+
+        File goodDirFile = new File(rootFile, "valid-manifest");
+        assertTrue(goodDirFile.mkdir());
+        writeFile(new File(goodDirFile, "00000001.jpg"));
+
+        DownloadInfo info = new DownloadInfo();
+        info.gid = 500L;
+        info.token = "token";
+        info.title = "Valid";
+        info.pages = 1;
+        info.state = DownloadInfo.STATE_FINISH;
+        LibraryManifest.write(info, null, UniFile.fromFile(goodDirFile));
+
+        LibraryScanner.Result result = LibraryScanner.scan(UniFile.fromFile(rootFile));
+
+        assertEquals(2, result.scanned);
+        assertEquals(1, result.found);
+        assertEquals(1, result.failed);
+        assertEquals(1, result.items.size());
+        assertEquals(500L, result.items.get(0).downloadInfo.gid);
+        assertTrue(containsWarning(result, "bad-manifest: manifest read failed"));
+    }
+
+    @Test
+    public void scanManifestMissingGidOrTokenReportsQualifiedWarning() throws Exception {
+        File rootFile = folder.newFolder("missing-token-library");
+        File dirFile = new File(rootFile, "600-missing-token");
+        assertTrue(dirFile.mkdir());
+        writeFile(new File(dirFile, LibraryManifest.MANIFEST_FILENAME),
+                "{\"source\":{\"gid\":600}}");
+
+        LibraryScanner.Result result = LibraryScanner.scan(UniFile.fromFile(rootFile));
+
+        assertEquals(1, result.scanned);
+        assertEquals(0, result.found);
+        assertEquals(1, result.failed);
+        assertEquals(0, result.items.size());
+        assertTrue(containsWarning(result, "600-missing-token: manifest missing gid/token"));
+    }
+
     private static void resetDb() {
         Context app = RuntimeEnvironment.application;
         app.deleteDatabase("eh.db");
@@ -168,9 +227,39 @@ public class LibraryScannerTest {
         EhDB.initialize(app);
     }
 
+    private static void writeSpiderInfo(File dirFile, long gid, String token, int pages) throws Exception {
+        SpiderInfo spiderInfo = new SpiderInfo();
+        spiderInfo.gid = gid;
+        spiderInfo.token = token;
+        spiderInfo.pages = pages;
+        spiderInfo.previewPages = 0;
+        spiderInfo.previewPerPage = 0;
+        spiderInfo.pTokenMap = new SparseArray<>();
+        try (java.io.OutputStream os = UniFile.fromFile(dirFile)
+                .createFile(SpiderQueen.SPIDER_INFO_FILENAME)
+                .openOutputStream()) {
+            spiderInfo.write(os);
+        }
+    }
+
     private static void writeFile(File file) throws Exception {
         try (FileOutputStream os = new FileOutputStream(file)) {
             os.write(new byte[] {1, 2, 3});
         }
+    }
+
+    private static void writeFile(File file, String value) throws Exception {
+        try (FileOutputStream os = new FileOutputStream(file)) {
+            os.write(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+    }
+
+    private static boolean containsWarning(LibraryScanner.Result result, String expected) {
+        for (String warning : result.warnings) {
+            if (expected.equals(warning)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

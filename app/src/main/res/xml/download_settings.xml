@@ -94,6 +94,33 @@
 
     <com.hippo.preference.SwitchPreference
         android:defaultValue="true"
+        android:key="request_governor"
+        android:title="@string/settings_download_request_governor"
+        app:summaryOff="@string/settings_download_request_governor_summary_off"
+        app:summaryOn="@string/settings_download_request_governor_summary_on" />
+
+    <com.hippo.preference.ListPreference
+        android:defaultValue="1500"
+        android:key="request_governor_delay_ms"
+        android:summary="@string/settings_download_request_governor_delay_summary"
+        android:title="@string/settings_download_request_governor_delay"
+        app:allowDividerAbove="true"
+        app:entries="@array/request_governor_delay_entries"
+        app:entryValues="@array/request_governor_delay_entry_values"
+        app:iconSpaceReserved="false" />
+
+    <com.hippo.preference.ListPreference
+        android:defaultValue="30"
+        android:key="request_governor_cooldown_minutes"
+        android:summary="@string/settings_download_request_governor_cooldown_summary"
+        android:title="@string/settings_download_request_governor_cooldown"
+        app:allowDividerAbove="true"
+        app:entries="@array/request_governor_cooldown_entries"
+        app:entryValues="@array/request_governor_cooldown_entry_values"
+        app:iconSpaceReserved="false" />
+
+    <com.hippo.preference.SwitchPreference
+        android:defaultValue="true"
         android:key="download_order_asc"
         android:summary="@string/settings_download_download_order_by_asc_summary"
         android:title="@string/settings_download_download_order_by_asc" />

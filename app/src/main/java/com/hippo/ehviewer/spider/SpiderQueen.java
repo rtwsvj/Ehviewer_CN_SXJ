@@ -40,6 +40,7 @@ import com.hippo.ehviewer.Settings;
 import com.hippo.ehviewer.client.EhEngine;
 import com.hippo.ehviewer.client.EhRequestBuilder;
 import com.hippo.ehviewer.client.EhUrl;
+import com.hippo.ehviewer.client.RequestGovernor;
 import com.hippo.ehviewer.client.data.GalleryInfo;
 import com.hippo.ehviewer.client.data.PreviewSet;
 import com.hippo.ehviewer.client.exception.Image509Exception;
@@ -53,7 +54,6 @@ import com.hippo.ehviewer.library.LibraryManifest;
 import com.hippo.lib.glgallery.GalleryPageView;
 import com.hippo.lib.glgallery.GalleryProvider;
 import com.hippo.lib.image.Image;
-//import com.hippo.lib.image.Image1;
 import com.hippo.streampipe.InputStreamPipe;
 import com.hippo.streampipe.OutputStreamPipe;
 import com.hippo.unifile.UniFile;
@@ -1178,6 +1178,7 @@ public final class SpiderQueen implements Runnable {
             GalleryPageParser.Result result = EhEngine.getGalleryPage(null, mHttpClient, pageUrl, mGalleryInfo.gid, mGalleryInfo.token);
             if (StringUtils.endsWith(result.imageUrl, URL_509_SUFFIX_ARRAY)) {
                 // Get 509
+                RequestGovernor.getInstance().enterCooldown();
                 // Notify listeners
                 notifyGet509(index);
                 throw new Image509Exception();
@@ -1190,6 +1191,7 @@ public final class SpiderQueen implements Runnable {
             GalleryPageApiParser.Result result = EhEngine.getGalleryPageApi(null, mHttpClient, gid, index, pToken, showKey, previousPToken);
             if (StringUtils.endsWith(result.imageUrl, URL_509_SUFFIX_ARRAY)) {
                 // Get 509
+                RequestGovernor.getInstance().enterCooldown();
                 // Notify listeners
                 notifyGet509(index);
                 throw new Image509Exception();
@@ -1302,12 +1304,6 @@ public final class SpiderQueen implements Runnable {
                 referer = EhUrl.getPageUrl(gid, index, pToken);
                 if (Settings.getDownloadOriginImage() && !TextUtils.isEmpty(originImageUrl)) {
                     targetImageUrl = originImageUrl;
-//                    String refNew;
-//                    if (targetImageUrl.contains("?")) {
-//                        refNew = referer + "&nl=" + skipHathKey;
-//                    } else {
-//                        refNew = referer + "?nl=" + skipHathKey;
-//                    }
                     if (targetImageUrl.contains("?")) {
                         targetImageUrl = targetImageUrl + "&nl=" + skipHathKey;
                     } else {
@@ -1322,8 +1318,9 @@ public final class SpiderQueen implements Runnable {
                         response = call.execute();
                         targetImageUrl = response.header("location");
                     } catch (IOException e) {
-                        error = "GP不足/Insufficient GP";
-                        IOException ioException = new IOException("原图链接获取失败", e);
+                        error = GetText.getString(R.string.error_insufficient_gp);
+                        IOException ioException = new IOException(
+                                GetText.getString(R.string.error_origin_image_url_failed), e);
                         Analytics.recordException(ioException);
                         break;
                     }
@@ -1332,7 +1329,7 @@ public final class SpiderQueen implements Runnable {
                 }
 
                 if (targetImageUrl == null) {
-                    error = "GP不足/Insufficient GP";
+                    error = GetText.getString(R.string.error_insufficient_gp);
                     break;
                 }
                 if (DEBUG_LOG) {
@@ -1362,7 +1359,7 @@ public final class SpiderQueen implements Runnable {
                     }
                     // 反劫持校验
                     if (!targetImageUrl.equals(responseUrl)) {
-                        error = "链接疑似被劫持\nThe link is suspected to be hijacked";
+                        error = GetText.getString(R.string.error_suspected_hijack);
                         response.close();
                         forceHtml = true;
                         continue;

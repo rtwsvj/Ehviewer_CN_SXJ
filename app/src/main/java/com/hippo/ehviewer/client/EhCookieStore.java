@@ -18,7 +18,10 @@ package com.hippo.ehviewer.client;
 
 import android.content.Context;
 import android.text.TextUtils;
+import android.widget.Toast;
 
+import com.hippo.ehviewer.R;
+import com.hippo.lib.yorozuya.SimpleHandler;
 import com.hippo.network.CookieRepository;
 
 import java.util.ArrayList;
@@ -50,6 +53,8 @@ public class EhCookieStore extends CookieRepository {
     };
 
     private final SecureCookieStorage mSecureCookieStorage;
+    private final Context mContext;
+    private boolean mSecureStorageFailureNotified;
 
     public static final Cookie sTipsCookie =
             new Cookie.Builder()
@@ -62,6 +67,7 @@ public class EhCookieStore extends CookieRepository {
 
     public EhCookieStore(Context context) {
         super(context, "okhttp3-cookie.db");
+        mContext = context.getApplicationContext();
         mSecureCookieStorage = new SecureCookieStorage(context);
         migrateLegacyIdentityCookies();
         if (hasSecureIdentityCookies()) {
@@ -83,7 +89,9 @@ public class EhCookieStore extends CookieRepository {
             return;
         }
 
-        mSecureCookieStorage.put(cookie.name(), cookie.value());
+        if (!mSecureCookieStorage.put(cookie.name(), cookie.value())) {
+            notifySecureStorageFailure();
+        }
         super.addCookie(toSessionCookie(cookie));
     }
 
@@ -222,7 +230,9 @@ public class EhCookieStore extends CookieRepository {
             for (Cookie cookie : getCookies(url)) {
                 if (isIdentityCookie(cookie.name()) &&
                         TextUtils.isEmpty(mSecureCookieStorage.get(cookie.name()))) {
-                    mSecureCookieStorage.put(cookie.name(), cookie.value());
+                    if (!mSecureCookieStorage.put(cookie.name(), cookie.value())) {
+                        notifySecureStorageFailure();
+                    }
                 }
             }
         }
@@ -245,6 +255,15 @@ public class EhCookieStore extends CookieRepository {
                 .secure()
                 .httpOnly()
                 .build());
+    }
+
+    private void notifySecureStorageFailure() {
+        if (mSecureStorageFailureNotified) {
+            return;
+        }
+        mSecureStorageFailureNotified = true;
+        SimpleHandler.getInstance().post(() -> Toast.makeText(mContext,
+                R.string.identity_cookie_secure_storage_unavailable, Toast.LENGTH_LONG).show());
     }
 
     private static Cookie expiredCookie(String name, String domain) {

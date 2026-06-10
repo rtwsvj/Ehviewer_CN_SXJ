@@ -27,11 +27,11 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.webkit.CookieManager;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -46,18 +46,18 @@ import com.google.android.material.snackbar.Snackbar;
 import com.hippo.ehviewer.Analytics;
 import com.hippo.ehviewer.EhApplication;
 import com.hippo.ehviewer.R;
-import com.hippo.ehviewer.client.EhCookieStore;
+import com.hippo.ehviewer.Settings;
 import com.hippo.ehviewer.client.EhRequestBuilder;
 import com.hippo.ehviewer.client.EhUrl;
+import com.hippo.ehviewer.client.WebViewCookieBridge;
 import com.hippo.ehviewer.widget.DialogWebChromeClient;
+import com.hippo.util.AppHelper;
 import com.hippo.widget.ProgressView;
 
 import java.io.IOException;
 import java.util.Map;
 
-import okhttp3.Cookie;
 import okhttp3.FormBody;
-import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -83,18 +83,7 @@ public class UConfigActivity extends ToolbarActivity {
         }
 
         try {
-            // http://stackoverflow.com/questions/32284642/how-to-handle-an-uncatched-exception
-            CookieManager cookieManager = CookieManager.getInstance();
-            cookieManager.flush();
-            cookieManager.removeAllCookies(null);
-            cookieManager.removeSessionCookies(null);
-
-            // Copy cookies from okhttp cookie store to CookieManager
             url = EhUrl.getUConfigUrl();
-            EhCookieStore store = EhApplication.getEhCookieStore(this);
-            for (Cookie cookie : store.getCookies(HttpUrl.parse(url))) {
-                cookieManager.setCookie(url, cookie.toString());
-            }
 
             setContentView(R.layout.activity_u_config);
             setNavigationIcon(R.drawable.v_arrow_left_dark_x24);
@@ -108,10 +97,15 @@ public class UConfigActivity extends ToolbarActivity {
             settings.setBuiltInZoomControls(true); //设置内置的缩放控件。若为false，则该WebView不可缩放
             settings.setDisplayZoomControls(false); //隐藏原生的缩放控件
 
-            webView.setWebViewClient(new UConfigWebViewClient(webView));
+            webView.setWebViewClient(shouldUseRequestInspector()
+                    ? new UConfigRequestInspectorWebViewClient(webView)
+                    : new UConfigWebViewClient());
             webView.setWebChromeClient(new DialogWebChromeClient(this));
-//        webView.addJavascriptInterface(payloadRecorder, "recorder");
-            webView.loadUrl(url);
+            WebViewCookieBridge.injectCookiesFromStore(this, url, true, () -> {
+                if (webView != null) {
+                    webView.loadUrl(url);
+                }
+            });
             progress = (ProgressView) findViewById(R.id.progress);
 
             Snackbar.make(webView, R.string.apply_tip, Snackbar.LENGTH_LONG).show();
@@ -124,6 +118,10 @@ public class UConfigActivity extends ToolbarActivity {
                     .setOnCancelListener(d -> finish())
                     .show();
         }
+    }
+
+    private boolean shouldUseRequestInspector() {
+        return Settings.getDF() && AppHelper.checkVPN(this);
     }
 
     private void apply() {
@@ -158,16 +156,6 @@ public class UConfigActivity extends ToolbarActivity {
         }
     }
 
-    private Cookie longLive(Cookie cookie) {
-        return new Cookie.Builder()
-                .name(cookie.name())
-                .value(cookie.value())
-                .domain(cookie.domain())
-                .path(cookie.path())
-                .expiresAt(Long.MAX_VALUE)
-                .build();
-    }
-
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -180,42 +168,39 @@ public class UConfigActivity extends ToolbarActivity {
         if (url == null) {
             return;
         }
-        try {
-            CookieManager cookieManager = CookieManager.getInstance();
-            String cookiesString = cookieManager.getCookie(url);
+        WebViewCookieBridge.saveCookiesFromWebView(this, url, EhUrl.HOST_E, EhUrl.HOST_EX);
+        WebViewCookieBridge.clear();
+    }
 
-            if (cookiesString != null && !cookiesString.isEmpty()) {
-                EhCookieStore store = EhApplication.getEhCookieStore(this);
-                HttpUrl eUrl = HttpUrl.parse(EhUrl.HOST_E);
-                HttpUrl exUrl = HttpUrl.parse(EhUrl.HOST_EX);
+    private class UConfigWebViewClient extends WebViewClient {
 
-                // The cookies saved in the uconfig page should be shared between e and ex
-                for (String header : cookiesString.split(";")) {
-                    Cookie eCookie = Cookie.parse(eUrl, header);
-                    if (eCookie != null) {
-                        store.addCookie(longLive(eCookie));
-                    }
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+            return true;
+        }
 
-                    Cookie exCookie = Cookie.parse(exUrl, header);
-                    if (exCookie != null) {
-                        store.addCookie(longLive(exCookie));
-                    }
-                }
-            }
-        } catch (Throwable t) {
-            Log.e(TAG, "CookieManager unavailable in onDestroy", t);
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, String url) {
+            return true;
+        }
+
+        @Override
+        public void onPageFinished(WebView view, String url) {
+            progress.setVisibility(View.GONE);
+            loaded = true;
         }
     }
 
-    private class UConfigWebViewClient extends RequestInspectorWebViewClient {
+    private class UConfigRequestInspectorWebViewClient extends RequestInspectorWebViewClient {
 
         final OkHttpClient webOkHttpClient = okHttpClient;
 
-        public UConfigWebViewClient(@NonNull WebView webView) {
+        public UConfigRequestInspectorWebViewClient(@NonNull WebView webView) {
             super(webView);
         }
 
-        public UConfigWebViewClient(@NonNull WebView webView, @NonNull RequestInspectorOptions options) {
+        public UConfigRequestInspectorWebViewClient(@NonNull WebView webView,
+                @NonNull RequestInspectorOptions options) {
             super(webView, options);
         }
 
