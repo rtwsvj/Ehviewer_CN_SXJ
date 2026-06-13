@@ -10,7 +10,7 @@ synthetic cookie、本地设备状态或现有自动化。
 - 基线 HEAD: `a3a96df70ad7ff1370f58fe5e130f659a71836cd`
 - 新增代码/测试提交: 4 个，均已普通 push 到 `origin/codex/handoff-native-port`
 - GitHub Actions: `gh run list --branch codex/handoff-native-port --limit 10` 仅返回 `Workflow Runs`，未发现该分支的远端 CI run
-- 本报告为文档提交，将在上述代码/测试检查点之后单独提交并普通 push；最终聊天交付会附提交后的 HEAD/status 对账
+- 本报告为上述代码/测试检查点之后的文档提交，已随最终交付普通 push；由于报告文件无法稳定包含自己的最终 commit hash，最终聊天交付同步给出实际 HEAD/status
 - 工作树在写报告前干净: `## codex/handoff-native-port...origin/codex/handoff-native-port`
 
 ## 2. 提交流水
