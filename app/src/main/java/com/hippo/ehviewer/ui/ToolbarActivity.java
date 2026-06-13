@@ -25,6 +25,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.widget.Toolbar;
 import com.hippo.ehviewer.R;
 import com.hippo.ehviewer.Settings;
+import com.hippo.ehviewer.util.EdgeToEdgeInsets;
 
 public abstract class ToolbarActivity extends EhActivity {
 
@@ -46,6 +47,7 @@ public abstract class ToolbarActivity extends EhActivity {
         super.setContentView(R.layout.activity_toolbar);
         getLayoutInflater().inflate(layoutResID, (ViewGroup) findViewById(R.id.content_panel), true);
         setSupportActionBar((Toolbar) findViewById(R.id.toolbar));
+        applyEdgeToEdgeInsets();
     }
 
     @Override
@@ -53,6 +55,7 @@ public abstract class ToolbarActivity extends EhActivity {
         super.setContentView(R.layout.activity_toolbar);
         ((ViewGroup) findViewById(R.id.content_panel)).addView(view);
         setSupportActionBar((Toolbar) findViewById(R.id.toolbar));
+        applyEdgeToEdgeInsets();
     }
 
     @Override
@@ -60,6 +63,12 @@ public abstract class ToolbarActivity extends EhActivity {
         super.setContentView(R.layout.activity_toolbar);
         ((ViewGroup) findViewById(R.id.content_panel)).addView(view, params);
         setSupportActionBar((Toolbar) findViewById(R.id.toolbar));
+        applyEdgeToEdgeInsets();
+    }
+
+    private void applyEdgeToEdgeInsets() {
+        EdgeToEdgeInsets.applyToolbarInsets(this, findViewById(R.id.toolbar),
+                findViewById(R.id.content_panel), Settings.getTheme() == Settings.THEME_LIGHT);
     }
 
     public void setNavigationIcon(@DrawableRes int resId) {

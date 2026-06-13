@@ -31,5 +31,6 @@
 
     <item name="fab_translation_y" type="id"/>
     <item name="fab_translation_y_animator" type="id"/>
+    <item name="edge_to_edge_initial_state" type="id"/>
 
 </resources>

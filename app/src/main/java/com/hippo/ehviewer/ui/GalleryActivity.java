@@ -60,10 +60,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.SwitchCompat;
+import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
-import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.hippo.android.resource.AttrResources;
 import com.hippo.ehviewer.AppConfig;
@@ -75,6 +74,7 @@ import com.hippo.ehviewer.gallery.ArchiveGalleryProvider;
 import com.hippo.ehviewer.gallery.DirGalleryProvider;
 import com.hippo.ehviewer.gallery.EhGalleryProvider;
 import com.hippo.ehviewer.gallery.GalleryProvider2;
+import com.hippo.ehviewer.util.EdgeToEdgeInsets;
 import com.hippo.ehviewer.widget.GalleryGuideView;
 import com.hippo.ehviewer.widget.GalleryHeader;
 import com.hippo.ehviewer.widget.ReversibleSeekBar;
@@ -402,6 +402,7 @@ public class GalleryActivity extends EhActivity implements SeekBar.OnSeekBarChan
         mSeekBar = (ReversibleSeekBar) ViewUtils.$$(mSeekBarPanel, R.id.seek_bar);
         mSeekBar.setOnSeekBarChangeListener(this);
         mAutoTransferPanel.setOnClickListener(this::autoRead);
+        applyEdgeToEdgeInsets();
 
         mSize = mGalleryProvider.size();
         mCurrentIndex = startPage;
@@ -442,18 +443,30 @@ public class GalleryActivity extends EhActivity implements SeekBar.OnSeekBarChan
         // Cutout
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             getWindow().getAttributes().layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-
-            GalleryHeader galleryHeader = findViewById(R.id.gallery_header);
-            galleryHeader.setOnApplyWindowInsetsListener((v, insets) -> {
-                galleryHeader.setDisplayCutout(insets.getDisplayCutout());
-                return insets;
-            });
         }
 
         if (Settings.getGuideGallery()) {
             FrameLayout mainLayout = (FrameLayout) ViewUtils.$$(this, R.id.main);
             mainLayout.addView(new GalleryGuideView(this));
         }
+    }
+
+    private void applyEdgeToEdgeInsets() {
+        EdgeToEdgeInsets.configureSystemBars(this, false, false);
+        GalleryHeader galleryHeader = findViewById(R.id.gallery_header);
+        ViewCompat.setOnApplyWindowInsetsListener(galleryHeader, (v, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(bars.left, bars.top, bars.right, 0);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                WindowInsets platformInsets = insets.toWindowInsets();
+                galleryHeader.setDisplayCutout(platformInsets != null
+                        ? platformInsets.getDisplayCutout() : null);
+            }
+            return insets;
+        });
+        ViewCompat.requestApplyInsets(galleryHeader);
+        EdgeToEdgeInsets.applySystemBarPadding(findViewById(R.id.gallery_bottom_controls),
+                false, true, true, true);
     }
 
     private boolean isEglAvailable() {

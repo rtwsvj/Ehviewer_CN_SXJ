@@ -69,14 +69,17 @@ public class GalleryHeader extends ViewGroup {
   private void measureChild(Rect rect, View view, int width, int paddingLeft, int paddingRight) {
     int left;
     MarginLayoutParams lp = (MarginLayoutParams) view.getLayoutParams();
+    int safePaddingLeft = getPaddingLeft() + paddingLeft;
+    int safePaddingRight = getPaddingRight() + paddingRight;
+    int top = getPaddingTop() + lp.topMargin;
     if (view == battery) {
-      left = paddingLeft + lp.leftMargin;
+      left = safePaddingLeft + lp.leftMargin;
     } else if (view == progress) {
-      left = paddingLeft + (width - paddingLeft - paddingRight) / 2 - view.getMeasuredWidth() / 2;
+      left = safePaddingLeft + (width - safePaddingLeft - safePaddingRight) / 2 - view.getMeasuredWidth() / 2;
     } else {
-      left = width - paddingRight - lp.rightMargin - view.getMeasuredWidth();
+      left = width - safePaddingRight - lp.rightMargin - view.getMeasuredWidth();
     }
-    rect.set(left, lp.topMargin, left + view.getMeasuredWidth(), lp.topMargin + view.getMeasuredHeight());
+    rect.set(left, top, left + view.getMeasuredWidth(), top + view.getMeasuredHeight());
   }
 
   @RequiresApi(api = Build.VERSION_CODES.P)
@@ -140,12 +143,13 @@ public class GalleryHeader extends ViewGroup {
     }
     int width = MeasureSpec.getSize(widthMeasureSpec);
 
-    int height = 0;
+    int height = getPaddingTop() + getPaddingBottom();
     for (int i = 0; i < getChildCount(); i++) {
       View child = getChildAt(i);
       measureChild(child, widthMeasureSpec, heightMeasureSpec);
       MarginLayoutParams lp = (MarginLayoutParams) child.getLayoutParams();
-      height = Math.max(height, child.getMeasuredHeight() + lp.topMargin);
+      height = Math.max(height, getPaddingTop() + child.getMeasuredHeight() + lp.topMargin
+          + getPaddingBottom());
     }
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && displayCutout != null) {

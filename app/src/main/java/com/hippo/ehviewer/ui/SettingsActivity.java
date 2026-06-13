@@ -32,6 +32,7 @@ import androidx.preference.PreferenceFragmentCompat;
 import com.hippo.ehviewer.R;
 import com.hippo.ehviewer.Settings;
 import com.hippo.ehviewer.ui.fragment.SettingsHeaders;
+import com.hippo.ehviewer.util.EdgeToEdgeInsets;
 import com.hippo.util.DrawableManager;
 
 public final class SettingsActivity extends EhActivity {
@@ -69,6 +70,10 @@ public final class SettingsActivity extends EhActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_settings);
+        EdgeToEdgeInsets.configureSystemBars(this, false,
+                Settings.getTheme() == Settings.THEME_LIGHT);
+        EdgeToEdgeInsets.applySystemBarPadding(findViewById(R.id.settings),
+                false, true, true, true);
         setActionBarUpIndicator(DrawableManager.getVectorDrawable(this, R.drawable.v_arrow_left_dark_x24));
         if (savedInstanceState==null){
             getSupportFragmentManager()

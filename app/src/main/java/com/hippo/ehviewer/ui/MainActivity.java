@@ -90,6 +90,7 @@ import com.hippo.ehviewer.ui.scene.sign.SignInScene;
 import com.hippo.ehviewer.ui.scene.SolidScene;
 import com.hippo.ehviewer.ui.scene.WarningScene;
 import com.hippo.ehviewer.ui.scene.sign.WebViewSignInScene;
+import com.hippo.ehviewer.util.EdgeToEdgeInsets;
 import com.hippo.ehviewer.ui.splash.SplashActivity;
 import com.hippo.ehviewer.updater.AppUpdater;
 import com.hippo.ehviewer.widget.EhDrawerLayout;
@@ -380,6 +381,7 @@ public final class MainActivity extends StageActivity
         mDrawerLayout.setDrawerListener(this);
         mNavView = (NavigationView) ViewUtils.$$(this, R.id.nav_view);
         mRightDrawer = (FrameLayout) ViewUtils.$$(this, R.id.right_drawer);
+        applyEdgeToEdgeInsets();
         View headerLayout = mNavView.getHeaderView(0);
         mAvatar = (AvatarImageView) ViewUtils.$$(headerLayout, R.id.avatar);
         mAvatar.setOnClickListener(l -> onAvatarChange());
@@ -430,6 +432,15 @@ public final class MainActivity extends StageActivity
             onRestore(savedInstanceState);
         }
         EhTagDatabase.update(this);
+    }
+
+    private void applyEdgeToEdgeInsets() {
+        boolean lightNavigationBars = Settings.getTheme() == Settings.THEME_LIGHT;
+        EdgeToEdgeInsets.configureSystemBars(this, false, lightNavigationBars);
+        EdgeToEdgeInsets.applySystemBarPadding(findViewById(R.id.fragment_container),
+                true, true, true, true);
+        EdgeToEdgeInsets.applySystemBarPadding(mNavView, true, true, false, false);
+        EdgeToEdgeInsets.applySystemBarPadding(mRightDrawer, true, true, false, true);
     }
 
     @Override
