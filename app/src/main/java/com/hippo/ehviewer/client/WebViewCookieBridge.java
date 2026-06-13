@@ -17,6 +17,8 @@ import androidx.annotation.Nullable;
 import com.hippo.ehviewer.EhApplication;
 import com.hippo.lib.yorozuya.SimpleHandler;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import okhttp3.Cookie;
@@ -71,7 +73,7 @@ public final class WebViewCookieBridge {
                 cookieManager.setAcceptCookie(true);
                 EhCookieStore store = EhApplication.getEhCookieStore(context);
                 for (Cookie cookie : store.getCookies(httpUrl)) {
-                    if (includeIdentityCookies || !EhCookieStore.isIdentityCookie(cookie.name())) {
+                    if (shouldBridgeCookie(cookie, includeIdentityCookies)) {
                         cookieManager.setCookie(url, cookie.toString());
                     }
                 }
@@ -124,19 +126,50 @@ public final class WebViewCookieBridge {
         try {
             CookieManager cookieManager = CookieManager.getInstance();
             cookieManager.setAcceptCookie(true);
-            HttpUrl httpUrl = HttpUrl.parse(url);
-            for (String header : headers) {
-                Cookie cookie = httpUrl != null ? Cookie.parse(httpUrl, header) : null;
-                if (cookie != null && !includeIdentityCookies
-                        && EhCookieStore.isIdentityCookie(cookie.name())) {
-                    continue;
-                }
-                cookieManager.setCookie(url, cookie != null ? cookie.toString() : header);
+            for (String header : getSetCookieHeadersForWebView(url, headers,
+                    includeIdentityCookies)) {
+                cookieManager.setCookie(url, header);
             }
             cookieManager.flush();
         } catch (Throwable t) {
             Log.e(TAG, "Failed to save response cookies to WebView", t);
         }
+    }
+
+    static List<String> getSetCookieHeadersForWebView(@NonNull String url,
+            @NonNull List<String> headers, boolean includeIdentityCookies) {
+        if (headers.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        HttpUrl httpUrl = HttpUrl.parse(url);
+        List<String> result = new ArrayList<>(headers.size());
+        for (String header : headers) {
+            Cookie cookie = httpUrl != null ? Cookie.parse(httpUrl, header) : null;
+            if (!includeIdentityCookies && isIdentitySetCookieHeader(cookie, header)) {
+                continue;
+            }
+            result.add(cookie != null ? cookie.toString() : header);
+        }
+        return result;
+    }
+
+    static boolean shouldBridgeCookie(@NonNull Cookie cookie, boolean includeIdentityCookies) {
+        return includeIdentityCookies || !EhCookieStore.isIdentityCookie(cookie.name());
+    }
+
+    private static boolean isIdentitySetCookieHeader(@Nullable Cookie cookie,
+            @NonNull String header) {
+        if (cookie != null && EhCookieStore.isIdentityCookie(cookie.name())) {
+            return true;
+        }
+
+        int equalsIndex = header.indexOf('=');
+        if (equalsIndex <= 0) {
+            return false;
+        }
+        String name = header.substring(0, equalsIndex).trim();
+        return EhCookieStore.isIdentityCookie(name);
     }
 
     private static void run(@Nullable Runnable runnable) {
