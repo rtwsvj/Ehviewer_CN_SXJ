@@ -135,6 +135,10 @@ jobs:
             ~/.android/adb*
           key: avd-api-${{ matrix.api-level }}-google-apis-x86-64-v1
 
+      - name: Prepare instrumentation class filter
+        run: |
+          echo "TEST_CLASSES=$(printf "%s" "${TARGET_INSTRUMENTATION_CLASSES}" | tr -d '[:space:]')" >> "$GITHUB_ENV"
+
       - name: Connected instrumentation tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -148,11 +152,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
           script: |
             chmod +x ./gradlew
-            TEST_CLASSES="$(printf "%s" "${TARGET_INSTRUMENTATION_CLASSES}" | tr -d '[:space:]')"
-            ./gradlew :app:connectedAppReleaseDebugAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.class="${TEST_CLASSES}" \
-              -Pkotlin.compiler.execution.strategy=in-process \
-              --stacktrace
+            ./gradlew :app:connectedAppReleaseDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class="${TEST_CLASSES}" -Pkotlin.compiler.execution.strategy=in-process --stacktrace
 
       - name: Verify instrumentation coverage
         run: |
