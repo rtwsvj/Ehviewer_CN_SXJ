@@ -974,31 +974,6 @@ public class Settings {
         putInt(KEY_DEFAULT_FAV_SLOT, value);
     }
 
-    /********************
-     ****** Analytics
-     ********************/
-    private static final String KEY_ASK_ANALYTICS = "ask_analytics";
-    private static final boolean DEFAULT_ASK_ANALYTICS = true;
-
-    public static boolean getAskAnalytics() {
-        return getBoolean(KEY_ASK_ANALYTICS, DEFAULT_ASK_ANALYTICS);
-    }
-
-    public static void putAskAnalytics(boolean value) {
-        putBoolean(KEY_ASK_ANALYTICS, value);
-    }
-
-    public static final String KEY_ENABLE_ANALYTICS = "enable_analytics";
-    private static final boolean DEFAULT_ENABLE_ANALYTICS = false;
-
-    public static boolean getEnableAnalytics() {
-        return getBoolean(KEY_ENABLE_ANALYTICS, DEFAULT_ENABLE_ANALYTICS);
-    }
-
-    public static void putEnableAnalytics(boolean value) {
-        putBoolean(KEY_ENABLE_ANALYTICS, value);
-    }
-
     private static final String KEY_USER_ID = "user_id";
     private static final String FILENAME_USER_ID = ".user_id";
     private static final int LENGTH_USER_ID = 32;

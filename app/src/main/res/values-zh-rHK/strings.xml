@@ -175,7 +175,6 @@
     <string name="content_layout_restore_tip">輕觸重試</string>
     <string name="write_rationale">EhViewer 將申請裝置存儲空間訪問權限以便下載畫廊。您願意授權嗎？</string>
     <string name="you_rejected_me">好痛</string>
-    <string name="analytics_explain">您同意讓開發者收集您的裝置資訊與使用情況嗎？這將對開發有很大幫助。&lt;br&gt;&lt;br&gt;數據統計服務由 Google Analytics for Firebase 提供，其隱私政策可在 &lt;a href=&quot;https://www.google.com/policies/privacy/&quot;&gt;https://www.google.com/policies/privacy/&lt;/a&gt; 查看。&lt;br&gt;&lt;br&gt;若您同意參與數據統計，您的裝置資訊與應用程式使用情況將會被記錄，其包括但不限於：Android API 版本、裝置型號、語言所在地、本應用程式版本、會話時長、應用功能使用次數。開發者承諾以下資訊並不會被記錄：電話號碼、電郵地址、IMEI。&lt;br&gt;&lt;br&gt;在您同意參與數據統計之前，您的資訊不會被記錄。&lt;br&gt;&lt;br&gt;被記錄的數據會交由 Google Analytics for Firebase 分析，分析報告僅可被本應用程式開發者存取。</string>
     <string name="get_it">知道了</string>
     <string name="accept">接受</string>
     <string name="reject">拒絕</string>
@@ -729,8 +728,6 @@
     <string name="settings_save_image_aliPay">儲存支付寶QR Code</string>
     <string name="settings_save_image_weChat">儲存微信QR Code</string>
     <string name="settings_about_donate_copied">已複製</string>
-    <string name="settings_privacy_enable_analytics">啟用數據統計</string>
-    <string name="settings_privacy_about_analytics">關於數據統計</string>
     <string name="settings_about_version">版本號碼</string>
     <string name="settings_about_check_for_updates">檢查更新</string>
     <string name="settings_close_automatic_updates">關閉自動更新</string>

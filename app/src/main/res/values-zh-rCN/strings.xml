@@ -125,7 +125,6 @@
     <string name="notification_rationale">EhViewer 需要通知权限来显示下载进度和下载完成提示。您愿意授权吗？</string>
     <string name="notification_permission_rejected">下载通知已关闭</string>
     <string name="you_rejected_me">好痛</string>
-    <string name="analytics_explain">您同意让开发者收集您的设备信息与使用情况吗？这将对开发有很大帮助。&lt;br&gt;&lt;br&gt;数据统计服务由 Google Analytics for Firebase 提供，其隐私政策可在 &lt;a href=&quot;https://www.google.com/policies/privacy/&quot;&gt;https://www.google.com/policies/privacy/&lt;/a&gt; 查看。&lt;br&gt;&lt;br&gt;若您同意参与数据统计，您的设备信息与应用使用情况将会被记录，其包括但不限于：Android API 版本、设备型号、语言所在地、本应用版本号、会话时长、应用功能使用次数。开发者承诺以下信息并不会被记录：电话号码、电子邮件地址、IMEI。&lt;br&gt;&lt;br&gt;在您同意参与数据统计之前，您的信息不会被记录。&lt;br&gt;&lt;br&gt;被记录的数据会由 Google Analytics for Firebase 进行分析，分析报表仅可被本应用开发者访问。</string>
     <string name="get_it">知道了</string>
     <string name="accept">接受</string>
     <string name="reject">拒绝</string>
@@ -695,8 +694,6 @@
     <string name="settings_about_donate_open">打开</string>
     <string name="settings_about_donate_copy">复制邮箱</string>
     <string name="settings_about_donate_copied">已复制</string>
-    <string name="settings_privacy_enable_analytics">启用数据统计</string>
-    <string name="settings_privacy_about_analytics">关于数据统计</string>
     <string name="settings_about_version">版本号</string>
     <string name="settings_about_check_for_updates">检查更新</string>
     <string name="settings_close_automatic_updates">关闭自动更新</string>

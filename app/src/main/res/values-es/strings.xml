@@ -134,7 +134,6 @@
     <string name="content_layout_restore_tip">Pulsar para reintentar</string>
     <string name="write_rationale">EhViewer solicitará el permiso WRITE_EXTERNAL_STORAGE para descargar galerías. ¿Desea conceder el permiso?</string>
     <string name="you_rejected_me">Duele</string>
-    <string name="analytics_explain">¿Le importaría si el desarrollador recopila información de su dispositivo y su uso? Ayudará mucho al desarrollador.&lt;br&gt;&lt;br&gt;El servicio de análisis de datos es proporcionado por Google Analytics for Firebase. Su política de privacidad se puede encontrar en &lt;a href=&quot;https://www.google.com/policies/privacy/&quot;&gt;https://www.google.com/policies/privacy/&lt;/a&gt;.&lt;br&gt;&lt;br&gt;Si acepta unirse al análisis de datos, se recopilará información de su dispositivo y su uso, incluida pero no limitada a la versión de la API de Android, modelo del equipo, residencia de idioma, versión de la aplicación, tiempo de conversión, tiempos de función. El desarrollador promete que esta información NO se recopilará, incluido el número de teléfono, dirección de correo electrónico, IMEI.&lt;br&gt;&lt;br&gt;Su información no se recopilará hasta que acepte unirse al análisis de datos.&lt;br&gt;&lt;br&gt;La información recopilada será analizada por Google Analytics for Firebase. El informe de análisis solo puede ser visto por el desarrollador de esta aplicación.</string>
     <string name="get_it">Entendido</string>
     <string name="accept">Aceptar</string>
     <string name="reject">Rechazar</string>
@@ -646,8 +645,6 @@
     <string name="settings_save_image_aliPay">Guardar código QR de Alipay</string>
     <string name="settings_save_image_weChat">Guardar código QR de WeChat</string>
     <string name="settings_about_donate_copied">Copiado</string>
-    <string name="settings_privacy_enable_analytics">Habilitar analytics</string>
-    <string name="settings_privacy_about_analytics">Acerca de analytics</string>
     <string name="settings_about_version">Versión de compilación</string>
     <string name="settings_about_check_for_updates">Verificar actualizaciones</string>
     <string name="settings_close_automatic_updates">Desactivar actualizaciones automáticas</string>

@@ -16,95 +16,31 @@
 package com.hippo.ehviewer
 
 import android.content.Context
-import android.os.Bundle
-import android.text.TextUtils
 import android.util.Log
 import com.hippo.scene.SceneFragment
-import java.util.Locale
 
 /**
- * Optional analytics bridge. The default appRelease build does not bundle Firebase;
- * opt-in telemetry builds can provide Firebase at runtime.
+ * Local diagnostics bridge kept for existing call sites.
  */
 object Analytics {
     private const val LOG_TAG = "Analytics"
-    private const val DEVICE_LANGUAGE = "device_language"
-
-    private var analytics: Any? = null
-    private var analyticsClass: Class<*>? = null
 
     @JvmStatic
     fun start(context: Context) {
-        if (!Settings.getEnableAnalytics()) {
-            analytics = null
-            analyticsClass = null
-            return
-        }
-
-        try {
-            val clazz = Class.forName("com.google.firebase.analytics.FirebaseAnalytics")
-            val instance = clazz.getMethod("getInstance", Context::class.java)
-                .invoke(null, context)
-            clazz.getMethod("setUserId", String::class.java).invoke(instance, Settings.getUserID())
-            clazz.getMethod("setUserProperty", String::class.java, String::class.java)
-                .invoke(instance, DEVICE_LANGUAGE, deviceLanguage())
-            analytics = instance
-            analyticsClass = clazz
-        } catch (e: Exception) {
-            analytics = null
-            analyticsClass = null
-            Log.i(LOG_TAG, "Firebase analytics unavailable", e)
-        }
+        Log.i(LOG_TAG, "Remote analytics disabled for " + context.packageName)
     }
 
     @JvmStatic
     val isEnabled: Boolean
-        get() = analytics != null && Settings.getEnableAnalytics()
+        get() = false
 
     @JvmStatic
     fun onSceneView(scene: SceneFragment) {
-        val instance = analytics
-        val clazz = analyticsClass
-        if (isEnabled && instance != null && clazz != null) {
-            try {
-                val bundle = Bundle()
-                bundle.putString("scene_simple_class", scene.javaClass.getSimpleName())
-                bundle.putString("scene_class", scene.javaClass.getName())
-                clazz.getMethod("logEvent", String::class.java, Bundle::class.java)
-                    .invoke(instance, "scene_view", bundle)
-            } catch (e: Exception) {
-                analytics = null
-                analyticsClass = null
-                Log.i(LOG_TAG, "Firebase analytics event skipped", e)
-            }
-        }
+        Log.d(LOG_TAG, "Scene viewed locally: " + scene.javaClass.simpleName)
     }
 
     @JvmStatic
     fun recordException(e: Throwable) {
         Log.e(LOG_TAG, "Unexpected error raised", e)
-
-        if (isEnabled) {
-            try {
-                val clazz = Class.forName("com.google.firebase.crashlytics.FirebaseCrashlytics")
-                val instance = clazz.getMethod("getInstance").invoke(null)
-                clazz.getMethod("recordException", Throwable::class.java).invoke(instance, e)
-            } catch (ex: Exception) {
-                Log.e(LOG_TAG, "Firebase error: " + ex)
-            }
-        }
-    }
-
-    private fun deviceLanguage(): String {
-        val locale = Locale.getDefault()
-        var language = locale.getLanguage()
-        if (TextUtils.isEmpty(language)) {
-            language = "none"
-        }
-        val country = locale.getCountry()
-        if (!TextUtils.isEmpty(country)) {
-            language = "$language-$country"
-        }
-        return language.lowercase(Locale.getDefault())
     }
 }

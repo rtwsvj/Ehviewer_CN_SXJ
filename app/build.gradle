@@ -4,12 +4,6 @@ apply plugin: "org.jetbrains.kotlin.plugin.parcelize"
 apply plugin: "org.jetbrains.kotlin.kapt"
 apply plugin: "com.jaredsburrows.license"
 
-def enableFirebaseTelemetry = (findProperty('enableFirebaseTelemetry') ?: 'false').toString().toBoolean()
-if (enableFirebaseTelemetry && file('google-services.json').exists()) {
-    apply plugin: 'com.google.gms.google-services'
-    apply plugin: 'com.google.firebase.crashlytics'
-}
-
 android {
     namespace 'com.hippo.ehviewer'
     testNamespace 'com.hippo.ehviewer.debug'
@@ -84,11 +78,6 @@ android {
 }
 dependencies {
     implementation 'com.google.android.material:material:1.13.0'
-
-    if (enableFirebaseTelemetry) {
-        implementation 'com.google.firebase:firebase-crashlytics:20.0.3'
-        implementation 'com.google.firebase:firebase-analytics:23.0.0'
-    }
 
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.activity:activity:1.10.1"
