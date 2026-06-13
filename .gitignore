@@ -2,6 +2,7 @@
 /local.properties
 .DS_Store
 /build
+/app/build/
 /src
 *.iml
 .idea
