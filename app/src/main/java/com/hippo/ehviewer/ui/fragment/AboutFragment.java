@@ -20,7 +20,6 @@ import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
@@ -41,12 +40,14 @@ import com.hippo.ehviewer.AppConfig;
 import com.hippo.ehviewer.EhApplication;
 import com.hippo.ehviewer.R;
 import com.hippo.ehviewer.updater.AppUpdater;
+import com.hippo.ehviewer.util.MediaStoreScanner;
 import com.hippo.util.AppHelper;
 import com.hippo.util.ExceptionUtils;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
@@ -122,8 +123,8 @@ public class AboutFragment extends BasePreferenceFragmentCompat
         Context context = getContext();
         File dir = AppConfig.getExternalImageDir();
         File mFile;
-        FileOutputStream fileOutputStream;
         Bitmap needSaveData;
+        String mimeType;
 
         Toast errorToast = Toast.makeText(context, R.string.error_save_image_existed, Toast.LENGTH_SHORT);
         errorToast.setGravity(Gravity.CENTER,0,0);
@@ -138,8 +139,10 @@ public class AboutFragment extends BasePreferenceFragmentCompat
                     errorToast.show();
                     return;
                 }
-                fileOutputStream = new FileOutputStream(mFile);
-                needSaveData.compress(Bitmap.CompressFormat.JPEG,100,fileOutputStream);
+                mimeType = "image/jpeg";
+                try (FileOutputStream fileOutputStream = new FileOutputStream(mFile)) {
+                    needSaveData.compress(Bitmap.CompressFormat.JPEG,100,fileOutputStream);
+                }
             }else{
                 needSaveData = BitmapFactory.decodeResource(getResources(),R.drawable.weixin);
                 mFile = new File(dir+"weixin.png");
@@ -147,13 +150,17 @@ public class AboutFragment extends BasePreferenceFragmentCompat
                     errorToast.show();
                     return;
                 }
-                fileOutputStream = new FileOutputStream(mFile);
-                needSaveData.compress(Bitmap.CompressFormat.PNG,100,fileOutputStream);
+                mimeType = "image/png";
+                try (FileOutputStream fileOutputStream = new FileOutputStream(mFile)) {
+                    needSaveData.compress(Bitmap.CompressFormat.PNG,100,fileOutputStream);
+                }
             }
             Uri uri = Uri.fromFile(mFile);
-            context.sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE,uri));
+            MediaStoreScanner.scan(context, uri, mimeType);
             successToast.show();
         }catch (FileNotFoundException e){
+            ExceptionUtils.throwIfFatal(e);
+        }catch (IOException e){
             ExceptionUtils.throwIfFatal(e);
         }
     }

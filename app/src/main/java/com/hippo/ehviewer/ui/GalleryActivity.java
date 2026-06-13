@@ -75,6 +75,7 @@ import com.hippo.ehviewer.gallery.DirGalleryProvider;
 import com.hippo.ehviewer.gallery.EhGalleryProvider;
 import com.hippo.ehviewer.gallery.GalleryProvider2;
 import com.hippo.ehviewer.util.EdgeToEdgeInsets;
+import com.hippo.ehviewer.util.MediaStoreScanner;
 import com.hippo.ehviewer.widget.GalleryGuideView;
 import com.hippo.ehviewer.widget.GalleryHeader;
 import com.hippo.ehviewer.widget.ReversibleSeekBar;
@@ -1008,8 +1009,7 @@ public class GalleryActivity extends EhActivity implements SeekBar.OnSeekBarChan
 
         Toast.makeText(this, getString(R.string.image_saved, file.getUri()), Toast.LENGTH_SHORT).show();
 
-        // Sync media store
-        sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, file.getUri()));
+        MediaStoreScanner.scan(this, file);
     }
 
     private void saveImageTo(int page) {
@@ -1070,8 +1070,7 @@ public class GalleryActivity extends EhActivity implements SeekBar.OnSeekBarChan
                 cacheFile.delete();
 
                 Toast.makeText(this, getString(R.string.image_saved, uri.getPath()), Toast.LENGTH_SHORT).show();
-                // Sync media store
-                sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, uri));
+                MediaStoreScanner.scan(this, uri, null);
             }
         }
     }
@@ -1110,8 +1109,7 @@ public class GalleryActivity extends EhActivity implements SeekBar.OnSeekBarChan
             }
 
             Toast.makeText(this, getString(R.string.image_saved, uri.getPath()), Toast.LENGTH_SHORT).show();
-            // Sync media store
-            sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, uri));
+            MediaStoreScanner.scan(this, uri, null);
         }
     }
 
