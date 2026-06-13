@@ -163,7 +163,7 @@ public final class RequestGovernor implements Interceptor {
     }
 
     private static boolean isLimitSignal(@NonNull Request request, @NonNull Response response) {
-        if (response.code() == 429 || response.code() == 509) {
+        if (response.code() == 429) {
             return true;
         }
         String encodedPath = request.url().encodedPath();
