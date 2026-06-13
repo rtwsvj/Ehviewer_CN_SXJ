@@ -18,6 +18,8 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.tls.HandshakeCertificates;
+import okhttp3.tls.HeldCertificate;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -35,9 +37,23 @@ public class RequestGovernorMockServerDeviceTest {
         Settings.putRequestGovernorDelayMs(0);
         Settings.putRequestGovernorCooldownMinutes(30);
         RequestGovernor.getInstance().resetForTesting();
+
+        HeldCertificate localhostCertificate = new HeldCertificate.Builder()
+                .addSubjectAlternativeName("localhost")
+                .build();
+        HandshakeCertificates serverCertificates = new HandshakeCertificates.Builder()
+                .heldCertificate(localhostCertificate)
+                .build();
+        HandshakeCertificates clientCertificates = new HandshakeCertificates.Builder()
+                .addTrustedCertificate(localhostCertificate.certificate())
+                .build();
+
         server = new MockWebServer();
+        server.useHttps(serverCertificates.sslSocketFactory(), false);
         server.start();
         client = new OkHttpClient.Builder()
+                .sslSocketFactory(clientCertificates.sslSocketFactory(),
+                        clientCertificates.trustManager())
                 .addInterceptor(RequestGovernor.getInstance())
                 .build();
     }

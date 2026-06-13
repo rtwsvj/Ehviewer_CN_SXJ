@@ -47,6 +47,10 @@ public class DownloadLimitSignalDeviceTest {
                 context.getSystemService(Context.NOTIFICATION_SERVICE);
         grantNotificationPermissionIfNeeded();
         notificationManager.cancel(DownloadLimitNotifier.ID_509);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            notificationManager.deleteNotificationChannel(
+                    DownloadLimitNotifier.getChannelId(context));
+        }
         EhDB.removeDownloadInfo(CURRENT_GID);
         EhDB.removeDownloadInfo(WAITING_GID);
     }
@@ -85,10 +89,13 @@ public class DownloadLimitSignalDeviceTest {
     }
 
     @Test
-    public void notifierPostsUserVisible509CooldownCopy() {
+    public void notifierPostsUserVisible509CooldownCopy() throws Exception {
+        assertTrue("Notifications were not enabled after permission grant",
+                waitForNotificationsEnabled());
+
         DownloadLimitNotifier.show509Alert(context, notificationManager);
 
-        Notification notification = find509Notification();
+        Notification notification = waitFor509Notification();
 
         assertNotNull("509 notification was not posted", notification);
         assertEquals(context.getString(R.string.stat_509_alert_title),
@@ -108,6 +115,31 @@ public class DownloadLimitSignalDeviceTest {
             }
         }
         return null;
+    }
+
+    private Notification waitFor509Notification() throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        Notification notification;
+        do {
+            notification = find509Notification();
+            if (notification != null) {
+                return notification;
+            }
+            Thread.sleep(100);
+        } while (System.nanoTime() < deadline);
+        return null;
+    }
+
+    private boolean waitForNotificationsEnabled() throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        do {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N
+                    || notificationManager.areNotificationsEnabled()) {
+                return true;
+            }
+            Thread.sleep(100);
+        } while (System.nanoTime() < deadline);
+        return false;
     }
 
     private void grantNotificationPermissionIfNeeded() {
