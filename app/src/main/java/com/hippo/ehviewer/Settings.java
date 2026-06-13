@@ -1347,15 +1347,31 @@ public class Settings {
         putIntToStr(KEY_REQUEST_GOVERNOR_COOLDOWN_MINUTES, value);
     }
 
+    public static final String KEY_REQUEST_GOVERNOR_FAILURE_BACKOFF_BASE_MS =
+            "request_governor_failure_backoff_base_ms";
     private static final int DEFAULT_REQUEST_GOVERNOR_FAILURE_BACKOFF_BASE_MS = 2000;
-    private static final int DEFAULT_REQUEST_GOVERNOR_FAILURE_BACKOFF_MAX_MS = 16000;
 
     public static int getRequestGovernorFailureBackoffBaseMs() {
-        return DEFAULT_REQUEST_GOVERNOR_FAILURE_BACKOFF_BASE_MS;
+        return Math.max(0, getIntFromStr(KEY_REQUEST_GOVERNOR_FAILURE_BACKOFF_BASE_MS,
+                DEFAULT_REQUEST_GOVERNOR_FAILURE_BACKOFF_BASE_MS));
     }
 
+    public static void putRequestGovernorFailureBackoffBaseMs(int value) {
+        putIntToStr(KEY_REQUEST_GOVERNOR_FAILURE_BACKOFF_BASE_MS, value);
+    }
+
+    public static final String KEY_REQUEST_GOVERNOR_FAILURE_BACKOFF_MAX_MS =
+            "request_governor_failure_backoff_max_ms";
+    private static final int DEFAULT_REQUEST_GOVERNOR_FAILURE_BACKOFF_MAX_MS = 16000;
+
     public static int getRequestGovernorFailureBackoffMaxMs() {
-        return DEFAULT_REQUEST_GOVERNOR_FAILURE_BACKOFF_MAX_MS;
+        return Math.max(getRequestGovernorFailureBackoffBaseMs(),
+                getIntFromStr(KEY_REQUEST_GOVERNOR_FAILURE_BACKOFF_MAX_MS,
+                        DEFAULT_REQUEST_GOVERNOR_FAILURE_BACKOFF_MAX_MS));
+    }
+
+    public static void putRequestGovernorFailureBackoffMaxMs(int value) {
+        putIntToStr(KEY_REQUEST_GOVERNOR_FAILURE_BACKOFF_MAX_MS, value);
     }
 
     private static final String KEY_IS_LOGIN = "is_login";
