@@ -174,7 +174,7 @@ public class RequestGovernorTest {
         }
 
         @Override
-        public void sleep(long millis) {
+        public synchronized void sleep(long millis) {
             totalSleptMs += millis;
             time.advance(millis);
         }
