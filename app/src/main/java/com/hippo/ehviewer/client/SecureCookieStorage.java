@@ -34,7 +34,7 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 
-final class SecureCookieStorage {
+final class SecureCookieStorage implements EhCookieStore.IdentityCookieStorage {
 
     private static final String TAG = SecureCookieStorage.class.getSimpleName();
     private static final String ANDROID_KEY_STORE = "AndroidKeyStore";
@@ -51,7 +51,8 @@ final class SecureCookieStorage {
                 .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
 
-    synchronized boolean put(String name, String value) {
+    @Override
+    public synchronized boolean put(String name, String value) {
         if (TextUtils.isEmpty(value)) {
             remove(name);
             return true;
@@ -66,7 +67,8 @@ final class SecureCookieStorage {
     }
 
     @Nullable
-    synchronized String get(String name) {
+    @Override
+    public synchronized String get(String name) {
         String encrypted = preferences.getString(KEY_PREFIX + name, null);
         if (TextUtils.isEmpty(encrypted)) {
             return null;
@@ -80,11 +82,13 @@ final class SecureCookieStorage {
         }
     }
 
-    synchronized void remove(String name) {
+    @Override
+    public synchronized void remove(String name) {
         preferences.edit().remove(KEY_PREFIX + name).apply();
     }
 
-    synchronized void clear() {
+    @Override
+    public synchronized void clear() {
         preferences.edit().clear().apply();
     }
 

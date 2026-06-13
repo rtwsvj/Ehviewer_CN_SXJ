@@ -52,7 +52,7 @@ public class EhCookieStore extends CookieRepository {
             KEY_IGNEOUS
     };
 
-    private final SecureCookieStorage mSecureCookieStorage;
+    private final IdentityCookieStorage mSecureCookieStorage;
     private final Context mContext;
     private boolean mSecureStorageFailureNotified;
 
@@ -66,14 +66,20 @@ public class EhCookieStore extends CookieRepository {
                     .build();
 
     public EhCookieStore(Context context) {
-        super(context, "okhttp3-cookie.db");
+        this(context, "okhttp3-cookie.db", new SecureCookieStorage(context));
+    }
+
+    EhCookieStore(Context context, String databaseName, IdentityCookieStorage secureCookieStorage) {
+        super(context, databaseName);
         mContext = context.getApplicationContext();
-        mSecureCookieStorage = new SecureCookieStorage(context);
-        migrateLegacyIdentityCookies();
-        if (hasSecureIdentityCookies()) {
+        mSecureCookieStorage = secureCookieStorage;
+        List<Cookie> legacySessionCookies = new ArrayList<>();
+        boolean hasLegacyIdentityCookies = migrateLegacyIdentityCookies(legacySessionCookies);
+        if (hasLegacyIdentityCookies || hasSecureIdentityCookies()) {
             removeLegacyIdentityCookies();
         }
         restoreIdentityCookies();
+        restoreSessionIdentityCookies(legacySessionCookies);
     }
 
     @Override
@@ -200,19 +206,19 @@ public class EhCookieStore extends CookieRepository {
     }
 
     private void restoreIdentityCookies() {
-        String ipbMemberId = mSecureCookieStorage.get(KEY_IPD_MEMBER_ID);
-        String ipbPassHash = mSecureCookieStorage.get(KEY_IPD_PASS_HASH);
-        if (TextUtils.isEmpty(ipbMemberId) || TextUtils.isEmpty(ipbPassHash)) {
-            return;
-        }
-
         for (String domain : IDENTITY_DOMAINS) {
-            addIdentitySessionCookie(KEY_IPD_MEMBER_ID, ipbMemberId, domain);
-            addIdentitySessionCookie(KEY_IPD_PASS_HASH, ipbPassHash, domain);
-            String igneous = mSecureCookieStorage.get(KEY_IGNEOUS);
-            if (!TextUtils.isEmpty(igneous)) {
-                addIdentitySessionCookie(KEY_IGNEOUS, igneous, domain);
+            for (String name : IDENTITY_COOKIE_NAMES) {
+                String value = mSecureCookieStorage.get(name);
+                if (!TextUtils.isEmpty(value)) {
+                    addIdentitySessionCookie(name, value, domain);
+                }
             }
+        }
+    }
+
+    private void restoreSessionIdentityCookies(List<Cookie> cookies) {
+        for (Cookie cookie : cookies) {
+            super.addCookie(toSessionCookie(cookie));
         }
     }
 
@@ -221,21 +227,27 @@ public class EhCookieStore extends CookieRepository {
                 !TextUtils.isEmpty(mSecureCookieStorage.get(KEY_IPD_PASS_HASH));
     }
 
-    private void migrateLegacyIdentityCookies() {
+    private boolean migrateLegacyIdentityCookies(List<Cookie> sessionCookies) {
+        boolean hasLegacyIdentityCookies = false;
         for (String host : IDENTITY_HOSTS) {
             HttpUrl url = HttpUrl.parse(host);
             if (url == null) {
                 continue;
             }
             for (Cookie cookie : getCookies(url)) {
-                if (isIdentityCookie(cookie.name()) &&
-                        TextUtils.isEmpty(mSecureCookieStorage.get(cookie.name()))) {
+                if (isIdentityCookie(cookie.name())) {
+                    hasLegacyIdentityCookies = true;
+                }
+                if (isIdentityCookie(cookie.name()) && TextUtils.isEmpty(
+                        mSecureCookieStorage.get(cookie.name()))) {
                     if (!mSecureCookieStorage.put(cookie.name(), cookie.value())) {
                         notifySecureStorageFailure();
+                        sessionCookies.add(cookie);
                     }
                 }
             }
         }
+        return hasLegacyIdentityCookies;
     }
 
     private void removeLegacyIdentityCookies() {
@@ -293,5 +305,15 @@ public class EhCookieStore extends CookieRepository {
             builder.httpOnly();
         }
         return builder.build();
+    }
+
+    interface IdentityCookieStorage {
+        boolean put(String name, String value);
+
+        String get(String name);
+
+        void remove(String name);
+
+        void clear();
     }
 }
