@@ -6,6 +6,7 @@
 *.iml
 .idea
 /captures
+/artifacts/
 release
 google-services.json
 *.jks
