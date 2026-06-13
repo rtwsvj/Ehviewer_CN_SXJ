@@ -10,8 +10,22 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import okhttp3.Call;
+import okhttp3.Connection;
+import okhttp3.Interceptor;
+import okhttp3.Protocol;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 import org.junit.Test;
 
 public class RequestGovernorTest {
@@ -54,6 +68,63 @@ public class RequestGovernorTest {
         assertEquals(TimeUnit.MINUTES.toMillis(30), sleeper.totalSleptMs);
     }
 
+    @Test
+    public void interceptorStartsCooldownOn509Status() throws IOException {
+        FakeTime time = new FakeTime();
+        FakeSleeper sleeper = new FakeSleeper(time);
+        RequestGovernor governor = new RequestGovernor(new TestConfig(), time, sleeper);
+
+        governor.intercept(new StaticResponseChain("https://e-hentai.org/gallery", 509));
+
+        assertEquals(TimeUnit.MINUTES.toMillis(30), governor.cooldownRemainingMs());
+    }
+
+    @Test
+    public void interceptorStartsCooldownOn509ImagePath() throws IOException {
+        FakeTime time = new FakeTime();
+        FakeSleeper sleeper = new FakeSleeper(time);
+        RequestGovernor governor = new RequestGovernor(new TestConfig(), time, sleeper);
+
+        governor.intercept(new StaticResponseChain("https://e-hentai.org/509.gif", 200));
+
+        assertEquals(TimeUnit.MINUTES.toMillis(30), governor.cooldownRemainingMs());
+    }
+
+    @Test
+    public void concurrentRequestsShareOneGlobalSchedule() throws Exception {
+        FakeTime time = new FakeTime();
+        FakeSleeper sleeper = new FakeSleeper(time);
+        RequestGovernor governor = new RequestGovernor(new TestConfig(), time, sleeper);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        CountDownLatch ready = new CountDownLatch(4);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Long> completedAt = Collections.synchronizedList(new ArrayList<>());
+        List<Future<?>> futures = new ArrayList<>();
+
+        for (int i = 0; i < 4; i++) {
+            futures.add(executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                governor.beforeRequest();
+                completedAt.add(time.now());
+                return null;
+            }));
+        }
+
+        assertTrue(ready.await(5, TimeUnit.SECONDS));
+        start.countDown();
+        for (Future<?> future : futures) {
+            future.get(5, TimeUnit.SECONDS);
+        }
+        executor.shutdownNow();
+
+        Collections.sort(completedAt);
+        assertEquals(4, completedAt.size());
+        for (int i = 1; i < completedAt.size(); i++) {
+            assertTrue(completedAt.get(i) - completedAt.get(i - 1) >= 1500L);
+        }
+    }
+
     private static final class TestConfig implements RequestGovernor.Config {
         @Override
         public boolean enabled() {
@@ -85,8 +156,12 @@ public class RequestGovernorTest {
         long now = 100000L;
 
         @Override
-        public long now() {
+        public synchronized long now() {
             return now;
+        }
+
+        synchronized void advance(long millis) {
+            now += millis;
         }
     }
 
@@ -101,7 +176,73 @@ public class RequestGovernorTest {
         @Override
         public void sleep(long millis) {
             totalSleptMs += millis;
-            time.now += millis;
+            time.advance(millis);
+        }
+    }
+
+    private static final class StaticResponseChain implements Interceptor.Chain {
+        private final Request request;
+        private final int responseCode;
+
+        StaticResponseChain(String url, int responseCode) {
+            this.request = new Request.Builder().url(url).build();
+            this.responseCode = responseCode;
+        }
+
+        @Override
+        public Request request() {
+            return request;
+        }
+
+        @Override
+        public Response proceed(Request request) {
+            return new Response.Builder()
+                    .request(request)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(responseCode)
+                    .message("test")
+                    .body(ResponseBody.create(null, new byte[0]))
+                    .build();
+        }
+
+        @Override
+        public Connection connection() {
+            return null;
+        }
+
+        @Override
+        public Call call() {
+            return null;
+        }
+
+        @Override
+        public int connectTimeoutMillis() {
+            return 0;
+        }
+
+        @Override
+        public Interceptor.Chain withConnectTimeout(int timeout, TimeUnit unit) {
+            return this;
+        }
+
+        @Override
+        public int readTimeoutMillis() {
+            return 0;
+        }
+
+        @Override
+        public Interceptor.Chain withReadTimeout(int timeout, TimeUnit unit) {
+            return this;
+        }
+
+        @Override
+        public int writeTimeoutMillis() {
+            return 0;
+        }
+
+        @Override
+        public Interceptor.Chain withWriteTimeout(int timeout, TimeUnit unit) {
+            return this;
         }
     }
 }
