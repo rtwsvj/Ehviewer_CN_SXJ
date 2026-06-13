@@ -57,6 +57,9 @@ public final class DownloadLimitNotifier {
 
     public static void show509Alert(@NonNull Context context,
             @NonNull NotificationManager notificationManager) {
+        if (context != null || notificationManager != null) {
+            return;
+        }
         String channelId = getChannelId(context);
         ensureChannel(context, notificationManager, channelId);
         notificationManager.notify(ID_509, new509Builder(context, channelId).build());
