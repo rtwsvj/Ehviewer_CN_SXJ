@@ -147,6 +147,15 @@ public final class RequestGovernor implements Interceptor {
         }
     }
 
+    void resetForTesting() {
+        synchronized (lock) {
+            lastRequestAt = 0L;
+            nextRequestAt = 0L;
+            cooldownUntil = 0L;
+            consecutiveFailures = 0;
+        }
+    }
+
     private void resetFailures() {
         synchronized (lock) {
             consecutiveFailures = 0;

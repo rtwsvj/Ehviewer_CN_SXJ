@@ -16,7 +16,6 @@
 package com.hippo.ehviewer.download
 
 import android.annotation.SuppressLint
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
@@ -63,16 +62,9 @@ class DownloadService : Service(), DownloadManager.DownloadListener {
     override fun onCreate() {
         super.onCreate()
 
-        CHANNEL_ID = "$packageName.download"
+        CHANNEL_ID = DownloadLimitNotifier.getChannelId(this)
         mNotifyManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            mNotifyManager!!.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_ID, getString(R.string.download_service),
-                    NotificationManager.IMPORTANCE_LOW
-                )
-            )
-        }
+        DownloadLimitNotifier.ensureChannel(this, mNotifyManager!!, CHANNEL_ID!!)
         mDownloadManager = EhApplication.getDownloadManager(applicationContext)
         mDownloadManager!!.setDownloadListener(this)
     }
@@ -257,17 +249,9 @@ class DownloadService : Service(), DownloadManager.DownloadListener {
             return
         }
 
-        m509dBuilder = NotificationCompat.Builder(applicationContext, CHANNEL_ID!!)
-            .setSmallIcon(R.drawable.ic_stat_alert)
-            .setLargeIcon(BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher))
-            .setContentText(getString(R.string.stat_509_alert_title))
-            .setContentText(getString(R.string.stat_509_alert_text))
-            .setAutoCancel(true)
-            .setOngoing(false)
-            .setCategory(NotificationCompat.CATEGORY_ERROR)
-            .setChannelId(CHANNEL_ID!!)
+        m509dBuilder = DownloadLimitNotifier.new509Builder(applicationContext, CHANNEL_ID!!)
 
-        m509Delay = NotificationDelay(this, mNotifyManager, m509dBuilder!!, ID_509)
+        m509Delay = NotificationDelay(this, mNotifyManager, m509dBuilder!!, DownloadLimitNotifier.ID_509)
     }
 
     override fun onGet509() {
@@ -607,7 +591,6 @@ class DownloadService : Service(), DownloadManager.DownloadListener {
 
         private const val ID_DOWNLOADING = 1
         private const val ID_DOWNLOADED = 2
-        private const val ID_509 = 3
 
         private val sItemStateArray =
             SparseJBArray()

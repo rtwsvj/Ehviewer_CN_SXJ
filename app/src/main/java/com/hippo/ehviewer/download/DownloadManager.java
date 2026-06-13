@@ -27,6 +27,7 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 
 import com.hippo.ehviewer.Analytics;
 import com.hippo.ehviewer.EhDB;
@@ -1167,6 +1168,30 @@ public class DownloadManager implements SpiderQueen.OnSpiderListener {
 
     boolean isIdle() {
         return mCurrentTask == null && mWaitList.isEmpty();
+    }
+
+    @VisibleForTesting
+    void putDownloadForTesting(@NonNull DownloadInfo info, boolean current) {
+        if (mAllInfoMap.get(info.gid) == null) {
+            mAllInfoMap.put(info.gid, info);
+            mAllInfoList.add(info);
+            LinkedList<DownloadInfo> list = getInfoListForLabel(info.label);
+            if (list != null && !list.contains(info)) {
+                list.add(info);
+            }
+        }
+        if (current) {
+            mCurrentTask = info;
+            info.state = DownloadInfo.STATE_DOWNLOAD;
+        } else if (!mWaitList.contains(info)) {
+            info.state = DownloadInfo.STATE_WAIT;
+            mWaitList.add(info);
+        }
+    }
+
+    @VisibleForTesting
+    boolean isIdleForTesting() {
+        return isIdle();
     }
 
     @Override
