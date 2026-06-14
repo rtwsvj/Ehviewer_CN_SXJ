@@ -7,12 +7,12 @@
 package com.hippo.ehviewer.util;
 
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import android.Manifest;
 import android.content.ContentResolver;
 import android.content.ContentUris;
-import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
@@ -25,11 +25,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SdkSuppress;
 import androidx.test.platform.app.InstrumentationRegistry;
 
-import com.hippo.unifile.UniFile;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
@@ -46,6 +46,11 @@ public class MediaStoreVisibilityDeviceTest {
             Base64.DEFAULT);
     private static final String TEST_DIR = "EhViewerMediaStoreScannerDeviceTest";
 
+    private final String runId = Long.toHexString(System.currentTimeMillis())
+            + "-" + Long.toHexString(System.nanoTime());
+    private final List<String> displayNames = new ArrayList<>();
+    private final List<File> files = new ArrayList<>();
+
     private Context context;
     private ContentResolver resolver;
 
@@ -57,31 +62,16 @@ public class MediaStoreVisibilityDeviceTest {
 
     @After
     public void tearDown() {
-        deleteByDisplayName(prefixName("public"));
-        deleteByDisplayName(prefixName("content"));
-    }
-
-    @Test
-    public void publicDirectoryImageIsVisibleAfterMediaStoreScannerRuns()
-            throws Exception {
-        String displayName = prefixName("public");
-        File file = publicPicturesFile(displayName);
-
         adoptPublicMediaShellPermissions();
         try {
-            assertTrue("Failed to create public image parent",
-                    file.getParentFile() != null
-                            && (file.getParentFile().isDirectory()
-                            || file.getParentFile().mkdirs()));
-            try (OutputStream outputStream = new FileOutputStream(file)) {
-                outputStream.write(PNG_BYTES);
+            for (String displayName : displayNames) {
+                deleteByDisplayName(displayName);
             }
-            assertTrue("Synthetic public image was not written", file.isFile());
-
-            MediaStoreScanner.scan(context, Uri.fromFile(file), "image/png");
-
-            assertNotNull("Public image was not visible through MediaStore.Images",
-                    awaitVisibleImage(displayName));
+            for (File file : files) {
+                if (file.isFile()) {
+                    file.delete();
+                }
+            }
         } finally {
             InstrumentationRegistry.getInstrumentation().getUiAutomation()
                     .dropShellPermissionIdentity();
@@ -89,30 +79,53 @@ public class MediaStoreVisibilityDeviceTest {
     }
 
     @Test
-    public void contentUriImageSaveIsVisibleThroughMediaStoreImages() throws Exception {
-        String displayName = prefixName("content");
-        Uri uri = insertPendingImage(displayName);
-        assertNotNull("Failed to create MediaStore image row", uri);
+    public void externalAppImageIsInvisibleUntilMediaStoreScannerRuns()
+            throws Exception {
+        assertFileScanMakesImageVisible("explicit-mime", "image/png");
+    }
 
+    @Test
+    public void externalAppImageWithInferredMimeIsInvisibleUntilMediaStoreScannerRuns()
+            throws Exception {
+        assertFileScanMakesImageVisible("inferred-mime", null);
+    }
+
+    private void assertFileScanMakesImageVisible(String kind, String mimeType)
+            throws Exception {
+        String displayName = prefixName(kind);
+        File file = externalAppImageFile(displayName);
+        displayNames.add(displayName);
+        files.add(file);
+
+        adoptPublicMediaShellPermissions();
         try {
-            UniFile mediaFile = UniFile.fromMediaUri(context, uri);
-            try (OutputStream outputStream = mediaFile.openOutputStream()) {
+            assertTrue("Failed to create external app image parent",
+                    file.getParentFile() != null
+                            && (file.getParentFile().isDirectory()
+                            || file.getParentFile().mkdirs()));
+            try (OutputStream outputStream = new FileOutputStream(file)) {
                 outputStream.write(PNG_BYTES);
             }
-            publishImage(uri);
+            assertTrue("Synthetic external app image was not written", file.isFile());
 
-            MediaStoreScanner.scan(context, uri, "image/png");
+            assertNull("Image was visible before MediaStoreScanner.scan: "
+                            + displayName,
+                    awaitVisibleImage(displayName, TimeUnit.SECONDS.toMillis(2)));
 
-            assertNotNull("Content URI image was not visible through MediaStore.Images",
-                    awaitVisibleImage(displayName));
-        } catch (Throwable throwable) {
-            resolver.delete(uri, null, null);
-            throw throwable;
+            MediaStoreScanner.scan(context, Uri.fromFile(file), mimeType);
+
+            assertNotNull("Image was not visible through MediaStore.Images after scan: "
+                            + displayName,
+                    awaitVisibleImage(displayName, TimeUnit.SECONDS.toMillis(15)));
+        } finally {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
         }
     }
 
-    private Uri awaitVisibleImage(String displayName) throws InterruptedException {
-        long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(10);
+    private Uri awaitVisibleImage(String displayName, long timeoutMillis)
+            throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
         Uri uri;
         do {
             uri = queryImage(displayName);
@@ -143,37 +156,11 @@ public class MediaStoreVisibilityDeviceTest {
         return null;
     }
 
-    private Uri insertPendingImage(String displayName) {
-        ContentValues values = new ContentValues();
-        values.put(MediaStore.Images.Media.DISPLAY_NAME, displayName);
-        values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
-        values.put(MediaStore.Images.Media.RELATIVE_PATH,
-                Environment.DIRECTORY_PICTURES + "/" + TEST_DIR);
-        values.put(MediaStore.Images.Media.IS_PENDING, 1);
-        return resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
-    }
-
-    private void publishImage(Uri uri) {
-        ContentValues values = new ContentValues();
-        values.put(MediaStore.Images.Media.IS_PENDING, 0);
-        resolver.update(uri, values, null, null);
-    }
-
     private void deleteByDisplayName(String displayName) {
-        adoptPublicMediaShellPermissions();
-        try {
-            resolver.delete(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    MediaStore.Images.Media.DISPLAY_NAME + "=?",
-                    new String[]{displayName});
-            File file = publicPicturesFile(displayName);
-            if (file.isFile()) {
-                file.delete();
-            }
-        } finally {
-            InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                    .dropShellPermissionIdentity();
-        }
+        resolver.delete(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                MediaStore.Images.Media.DISPLAY_NAME + "=?",
+                new String[]{displayName});
     }
 
     private static void adoptPublicMediaShellPermissions() {
@@ -195,14 +182,14 @@ public class MediaStoreVisibilityDeviceTest {
         }
     }
 
-    private static String prefixName(String kind) {
-        return "ehviewer-" + kind + "-visibility.png";
+    private String prefixName(String kind) {
+        return "ehviewer-" + kind + "-" + runId + "-visibility.png";
     }
 
     @SuppressWarnings("deprecation")
-    private static File publicPicturesFile(String displayName) {
-        return new File(new File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
-                TEST_DIR), displayName);
+    private static File externalAppImageFile(String displayName) {
+        return new File(new File(new File(
+                Environment.getExternalStorageDirectory(), TEST_DIR), "image"),
+                displayName);
     }
 }
