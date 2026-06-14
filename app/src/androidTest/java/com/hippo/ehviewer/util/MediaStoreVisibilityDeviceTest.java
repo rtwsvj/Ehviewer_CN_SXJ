@@ -17,7 +17,6 @@ import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Base64;
 
@@ -99,14 +98,14 @@ public class MediaStoreVisibilityDeviceTest {
 
         adoptPublicMediaShellPermissions();
         try {
-            assertTrue("Failed to create external app image parent",
+            assertTrue("Failed to create external media image parent",
                     file.getParentFile() != null
                             && (file.getParentFile().isDirectory()
                             || file.getParentFile().mkdirs()));
             try (OutputStream outputStream = new FileOutputStream(file)) {
                 outputStream.write(PNG_BYTES);
             }
-            assertTrue("Synthetic external app image was not written", file.isFile());
+            assertTrue("Synthetic external media image was not written", file.isFile());
 
             assertNull("Image was visible before MediaStoreScanner.scan: "
                             + displayName,
@@ -187,9 +186,11 @@ public class MediaStoreVisibilityDeviceTest {
     }
 
     @SuppressWarnings("deprecation")
-    private static File externalAppImageFile(String displayName) {
-        return new File(new File(new File(
-                Environment.getExternalStorageDirectory(), TEST_DIR), "image"),
+    private File externalAppImageFile(String displayName) {
+        File[] mediaDirs = context.getExternalMediaDirs();
+        assertTrue("No external media directory available",
+                mediaDirs.length > 0 && mediaDirs[0] != null);
+        return new File(new File(new File(mediaDirs[0], TEST_DIR), "image"),
                 displayName);
     }
 }
