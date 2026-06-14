@@ -86,7 +86,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api-level: [33, 35]
+        api-level: [28, 29, 33, 35]
     env:
       TARGET_INSTRUMENTATION_CLASSES: >-
         com.hippo.ehviewer.client.SecureCookieStorageDeviceTest,
@@ -111,6 +111,7 @@ jobs:
           yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
           "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
             "platform-tools" \
+            "platforms;android-${{ matrix.api-level }}" \
             "platforms;android-35" \
             "build-tools;35.0.0" \
             "cmake;3.22.1" \
@@ -155,19 +156,30 @@ jobs:
             ./gradlew :app:connectedAppReleaseDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class="${TEST_CLASSES}" -Pkotlin.compiler.execution.strategy=in-process --stacktrace
 
       - name: Verify instrumentation coverage
+        env:
+          API_LEVEL: ${{ matrix.api-level }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import os
           import sys
           import xml.etree.ElementTree as ET
 
+          api_level = int(os.environ["API_LEVEL"])
           expected = {
               "com.hippo.ehviewer.client.SecureCookieStorageDeviceTest",
               "com.hippo.ehviewer.client.WebViewCookieBridgeDeviceTest",
               "com.hippo.ehviewer.client.RequestGovernorMockServerDeviceTest",
               "com.hippo.ehviewer.download.DownloadLimitSignalDeviceTest",
-              "com.hippo.ehviewer.util.MediaStoreVisibilityDeviceTest",
           }
+          min_tests = 7
+          if api_level >= 29:
+              expected.add("com.hippo.ehviewer.util.MediaStoreVisibilityDeviceTest")
+              min_tests = 9
+          allowed_skipped_classes = set()
+          if api_level < 29:
+              allowed_skipped_classes.add(
+                  "com.hippo.ehviewer.util.MediaStoreVisibilityDeviceTest")
           result_root = Path("app/build/outputs/androidTest-results/connected")
           result_files = sorted(result_root.rglob("*.xml"))
           if not result_files:
@@ -175,7 +187,7 @@ jobs:
               sys.exit(1)
 
           classes = set()
-          tests = failures = errors = skipped = 0
+          tests = failures = errors = skipped = unexpected_skips = 0
           for result_file in result_files:
               tree = ET.parse(result_file)
               for case in tree.iter("testcase"):
@@ -185,17 +197,21 @@ jobs:
                       classes.add(class_name)
                   failures += len(case.findall("failure"))
                   errors += len(case.findall("error"))
-                  skipped += len(case.findall("skipped"))
+                  skipped_nodes = case.findall("skipped")
+                  skipped += len(skipped_nodes)
+                  if skipped_nodes and class_name not in allowed_skipped_classes:
+                      unexpected_skips += len(skipped_nodes)
 
           missing = sorted(expected - classes)
+          executed = tests - skipped
           print(f"Instrumentation XML files: {len(result_files)}")
-          print(f"Instrumentation tests: total={tests}, failures={failures}, errors={errors}, skipped={skipped}")
+          print(f"Instrumentation tests: total={tests}, executed={executed}, failures={failures}, errors={errors}, skipped={skipped}")
           print("Instrumentation classes:")
           for class_name in sorted(classes):
               print(f"  {class_name}")
 
-          if tests < 9:
-              print(f"Expected at least 9 executed test cases, found {tests}", file=sys.stderr)
+          if executed < min_tests:
+              print(f"Expected at least {min_tests} executed test cases, found {executed}", file=sys.stderr)
               sys.exit(1)
           if missing:
               print("Missing expected instrumentation classes:", file=sys.stderr)
@@ -205,8 +221,8 @@ jobs:
           if failures or errors:
               print("Connected instrumentation XML contains failures/errors", file=sys.stderr)
               sys.exit(1)
-          if skipped:
-              print("Expected the targeted instrumentation tests to run, but XML contains skipped tests", file=sys.stderr)
+          if unexpected_skips:
+              print("Expected targeted instrumentation tests to run, but XML contains unexpected skipped tests", file=sys.stderr)
               sys.exit(1)
           PY
 
