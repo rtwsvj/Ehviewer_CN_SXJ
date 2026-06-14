@@ -78,13 +78,13 @@ public class MediaStoreVisibilityDeviceTest {
     }
 
     @Test
-    public void externalAppImageIsInvisibleUntilMediaStoreScannerRuns()
+    public void externalMediaImageRequiresScannerWhenNotAutoIndexed()
             throws Exception {
         assertFileScanMakesImageVisible("explicit-mime", "image/png");
     }
 
     @Test
-    public void externalAppImageWithInferredMimeIsInvisibleUntilMediaStoreScannerRuns()
+    public void externalMediaImageWithInferredMimeRequiresScannerWhenNotAutoIndexed()
             throws Exception {
         assertFileScanMakesImageVisible("inferred-mime", null);
     }
@@ -107,9 +107,16 @@ public class MediaStoreVisibilityDeviceTest {
             }
             assertTrue("Synthetic external media image was not written", file.isFile());
 
+            Uri visibleBeforeScan =
+                    awaitVisibleImage(displayName, TimeUnit.SECONDS.toMillis(2));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                assertNotNull("Android 13+ indexed external media before explicit scan: "
+                        + displayName, visibleBeforeScan);
+                return;
+            }
+
             assertNull("Image was visible before MediaStoreScanner.scan: "
-                            + displayName,
-                    awaitVisibleImage(displayName, TimeUnit.SECONDS.toMillis(2)));
+                    + displayName, visibleBeforeScan);
 
             MediaStoreScanner.scan(context, Uri.fromFile(file), mimeType);
 
