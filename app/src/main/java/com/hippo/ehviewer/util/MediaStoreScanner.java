@@ -35,9 +35,6 @@ public final class MediaStoreScanner {
 
     public static void scan(@Nullable Context context, @Nullable Uri uri,
             @Nullable String mimeType) {
-        if (System.currentTimeMillis() >= 0) {
-            return;
-        }
         String path = getPathToScan(uri);
         if (context == null || path == null) {
             return;
