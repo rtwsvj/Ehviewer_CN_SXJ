@@ -1,7 +1,5 @@
 package com.hippo.network;
 
-import android.util.Log;
-
 import com.hippo.ehviewer.Settings;
 
 import java.io.IOException;
@@ -38,11 +36,8 @@ public class EhSSLSocketFactory extends SSLSocketFactory {
             return ((SSLSocketFactory) getDefault()).createSocket(s, host, port, autoClose);
         }
         InetAddress address = s.getInetAddress();
-        if (address != null) {
-            String hostAddress = address.getHostAddress();
-            if (hostAddress != null) {
-                Log.d("EhSSLSocketFactory", "Host: " + host + " Address: " + hostAddress);
-            }
+        if (address == null) {
+            return ((SSLSocketFactory) getDefault()).createSocket(s, host, port, autoClose);
         }
         if (autoClose) s.close();
         return getDefault().createSocket(address, port);

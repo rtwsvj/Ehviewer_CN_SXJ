@@ -1,7 +1,5 @@
 package com.hippo.network;
 
-import android.util.Log;
-
 import com.hippo.ehviewer.Settings;
 
 import java.io.IOException;
@@ -41,7 +39,9 @@ public class EhSSLSocketFactoryLowSDK extends SSLSocketFactory {
             return ((SSLSocketFactory) getDefault()).createSocket(s, host, port, autoClose);
         }
         InetAddress address = s.getInetAddress();
-        Log.d("EhSSLSocketFactory", "Host: " + host + " Address: " + address.getHostAddress());
+        if (address == null) {
+            return ((SSLSocketFactory) getDefault()).createSocket(s, host, port, autoClose);
+        }
         if (autoClose) s.close();
         return enableTLSOnSocket(mSSLSocketFactory.createSocket(address, port));
     }
@@ -67,7 +67,7 @@ public class EhSSLSocketFactoryLowSDK extends SSLSocketFactory {
     }
 
     private Socket enableTLSOnSocket(Socket socket) {
-        if(socket instanceof SSLSocket) ((SSLSocket) socket).setEnabledProtocols(new String[] {"TLSv1", "TLSv1.1", "TLSv1.2", "TLSv1.3"});
+        if(socket instanceof SSLSocket) ((SSLSocket) socket).setEnabledProtocols(new String[] {"TLSv1.2", "TLSv1.3"});
         return socket;
     }
 }
