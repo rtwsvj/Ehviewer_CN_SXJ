@@ -36,6 +36,12 @@ public class ConnectThread extends Thread {
 
     public static final int DATA_TYPE_FAVORITE_INFO = 1004;
     public static final String FAVORITE_INFO_DATA_KEY = "favorite_info";
+
+    /** Hard cap on a single WiFi-sync payload so a peer that never sends the terminator can't OOM us. */
+    static final int MAX_PAYLOAD = 8 * 1024 * 1024;
+    /** Frame terminator; only ":END" (4 bytes) is stripped, the closing '}' stays part of the JSON. */
+    private static final byte[] END_MARKER = {'}', ':', 'E', 'N', 'D'};
+
     private final Socket socket;
     private final Handler handler;
     private final int connectKind;
@@ -142,18 +148,8 @@ public class ConnectThread extends Thread {
 
     private WiFiDataHand isToResponse(InputStream inputStream) {
         try {
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            byte[] bytes = new byte[1024];
-            String result = "";
-            for (int length; (length = inputStream.read(bytes)) != -1; ) {
-                outputStream.write(bytes, 0, length);
-                result = outputStream.toString("UTF-8");
-                if (result.endsWith("}:END")) {
-                    result = result.substring(0, result.length() - 4);
-                    break;
-                }
-            }
-            if (result.isEmpty()) {
+            String result = readFramedPayload(inputStream, MAX_PAYLOAD);
+            if (result == null || result.isEmpty()) {
                 return null;
             }
             return new WiFiDataHand(result);
@@ -163,6 +159,45 @@ public class ConnectThread extends Thread {
                 interrupt();
             }
             return null;
+        }
+    }
+
+    /**
+     * Reads one terminator-framed payload from the stream. Returns the decoded payload with the
+     * trailing ":END" delimiter removed (the closing '}' is kept), or {@code null} if the peer sends
+     * more than {@code maxPayload} bytes without a terminator (refused instead of buffering to OOM).
+     * On EOF without a terminator, returns whatever was accumulated (matching the legacy behavior).
+     * Package-private + static so it can be unit-tested on the JVM without Android dependencies.
+     */
+    static String readFramedPayload(InputStream inputStream, int maxPayload) throws IOException {
+        TailMatchingBuffer buffer = new TailMatchingBuffer();
+        byte[] bytes = new byte[1024];
+        for (int length; (length = inputStream.read(bytes)) != -1; ) {
+            buffer.write(bytes, 0, length);
+            if (buffer.size() > maxPayload) {
+                return null;
+            }
+            if (buffer.endsWith(END_MARKER)) {
+                String result = buffer.toString("UTF-8");
+                return result.substring(0, result.length() - 4);
+            }
+        }
+        return buffer.size() == 0 ? null : buffer.toString("UTF-8");
+    }
+
+    /** ByteArrayOutputStream that can test its raw byte tail in O(marker) without copying the buffer. */
+    private static final class TailMatchingBuffer extends ByteArrayOutputStream {
+        boolean endsWith(byte[] marker) {
+            if (count < marker.length) {
+                return false;
+            }
+            int offset = count - marker.length;
+            for (int i = 0; i < marker.length; i++) {
+                if (buf[offset + i] != marker[i]) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 
