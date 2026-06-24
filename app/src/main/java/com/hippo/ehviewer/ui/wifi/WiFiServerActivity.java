@@ -77,7 +77,7 @@ public class WiFiServerActivity extends ToolbarActivity implements AdapterView.O
 
     private WiFiServerHandler handler;
 
-    private boolean sending = false;
+    private volatile boolean sending = false;
 
     private final LinkedList<WiFiDataHand> dataHands = new LinkedList<>();
 
