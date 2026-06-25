@@ -18,12 +18,20 @@ import com.hippo.ehviewer.client.data.GalleryInfo;
 import com.hippo.ehviewer.dao.LocalFavoriteInfo;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
 /**
  * Pins the clipboard JSON contract after the fastjson -> org.json migration. The copy/paste flow
  * (between Ehviewer instances) must keep emitting and reading the same flat key set, including
  * non-ASCII content, and must still read a payload produced by an older fastjson build.
+ *
+ * <p>Runs under Robolectric so a real {@code org.json} (from android-all) is on the classpath rather
+ * than the throwing {@code android.jar} stub.
  */
+@Config(manifest = Config.NONE)
+@RunWith(RobolectricTestRunner.class)
 public class ClipboardUtilJsonTest {
 
     @Test

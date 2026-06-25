@@ -15,6 +15,9 @@ import static org.junit.Assert.assertFalse;
 
 import org.json.JSONObject;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
 import java.util.Date;
 
@@ -22,7 +25,12 @@ import java.util.Date;
  * Pins {@link GalleryTags#toString()} after the fastjson -> org.json migration: it must still emit a
  * JSON document carrying every field (preserving names), including non-ASCII tag values, with Date
  * fields serialised as epoch millis. The string is only used for display/logging, never parsed back.
+ *
+ * <p>Runs under Robolectric so a real {@code org.json} (from android-all) is on the classpath rather
+ * than the throwing {@code android.jar} stub.
  */
+@Config(manifest = Config.NONE)
+@RunWith(RobolectricTestRunner.class)
 public class GalleryTagsJsonTest {
 
     @Test
