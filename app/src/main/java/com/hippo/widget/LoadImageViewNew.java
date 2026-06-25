@@ -279,7 +279,15 @@ public class LoadImageViewNew extends FixedAspectImageView implements Unikery<Im
     public boolean onGetValue(@NonNull Image value, int source) {
         Drawable drawable;
         try {
-            drawable = value.getDrawable();
+            // Copy via ConstantState so each view gets an independent Drawable; sharing one
+            // instance across recycled views caused the same thumbnail to display repeatedly
+            // (matches the existing fix in LoadImageView; upstream 70faa8a4).
+            Drawable.ConstantState state = value.getDrawable().getConstantState();
+            if (state != null) {
+                drawable = state.newDrawable();
+            } else {
+                drawable = value.getDrawable();
+            }
         } catch (Exception e) {
             // The image might be recycled because it is removed from memory cache.
             Log.d(TAG, "The image is recycled", e);
