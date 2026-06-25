@@ -107,10 +107,11 @@ public class ClipboardUtil {
 
     /**
      * Parses the clipboard JSON produced by {@link #encodeFavorite} (or by an older fastjson build)
-     * back into a {@link GalleryInfo}. {@link GalleryInfo#galleryInfoFromJson} supplies the remaining
-     * defaults (favoriteSlot=-2, pages=0, rated=false, ...), matching the previous behaviour of
-     * merging defaultInfo before binding. Returns {@code null} for empty/malformed input.
-     * Package-private + static for JVM round-trip testing.
+     * back into a {@link GalleryInfo}. {@link GalleryInfo#galleryInfoFromJson} supplies most defaults
+     * (pages=0, rated=false, thumb sizes=0, ...) via its opt* reads; the clipboard format omits
+     * favoriteSlot, so we restore the INVALID_DEFAULT_FAV_SLOT (-2) the previous defaultInfo merge
+     * applied (galleryInfoFromJson would otherwise read it as 0). Returns {@code null} for
+     * empty/malformed input. Package-private + static for JVM round-trip testing.
      */
     @Nullable
     static GalleryInfo decodeGalleryInfo(@Nullable String galleryString) {
@@ -123,7 +124,11 @@ public class ClipboardUtil {
         } catch (JSONException e) {
             return null;
         }
-        return GalleryInfo.galleryInfoFromJson(object);
+        GalleryInfo galleryInfo = GalleryInfo.galleryInfoFromJson(object);
+        if (galleryInfo != null && !object.has("favoriteSlot")) {
+            galleryInfo.favoriteSlot = -2;
+        }
+        return galleryInfo;
     }
 
     /**
