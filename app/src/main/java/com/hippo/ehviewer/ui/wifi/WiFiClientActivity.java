@@ -87,6 +87,14 @@ public class WiFiClientActivity extends AppCompatActivity {
 
     private TextView statusInit;
 
+    private android.widget.EditText pairCodeInput;
+
+    /**
+     * SEC-1 / FIX_QUEUE Q7: the 6-digit code the user reads off the sending device and types here.
+     * The receiver refuses to persist any data until the sender's first frame carries a matching code.
+     */
+    private String pairCode;
+
     private WiFiClientHandler handler;
 
     @Override
@@ -105,6 +113,7 @@ public class WiFiClientActivity extends AppCompatActivity {
         textState = findViewById(R.id.status_info);
         receiveMessage = findViewById(R.id.receive_message);
         statusInit = findViewById(R.id.status_init);
+        pairCodeInput = findViewById(R.id.pair_code_input);
 
         String initText = "已连接到：" + wifiManager.getConnectionInfo().getSSID() +
                 "\nIP:" + getIp()
@@ -115,8 +124,8 @@ public class WiFiClientActivity extends AppCompatActivity {
             handler = new WiFiClientHandler(getMainLooper());
         }
         //        initBroadcastReceiver();
-        //        开启连接线程
-        connectSocket();
+        // SEC-1 / Q7: do NOT auto-connect on launch. The user must enter the pairing code shown on
+        // the sender and tap "connect" first, otherwise the receiver would accept data with no code.
         listenerThread = new ListenerThread(PORT, handler);
         listenerThread.start();
     }
@@ -131,10 +140,15 @@ public class WiFiClientActivity extends AppCompatActivity {
     }
 
     private void connectSocket() {
+        // SEC-1 / Q7: never open the data connection without a pairing code entered by the user.
+        if (pairCode == null || pairCode.trim().isEmpty()) {
+            runOnUiThread(() -> textState.setText(R.string.wifi_pair_code_required));
+            return;
+        }
         new Thread(() -> {
             try {
                 Socket socket = new Socket(getWifiRouteIPAddress(WiFiClientActivity.this), PORT);
-                connectThread = new ConnectThread(getApplicationContext(), socket, handler, IS_CLIENT);
+                connectThread = new ConnectThread(getApplicationContext(), socket, handler, IS_CLIENT, pairCode);
                 connectThread.start();
             } catch (IOException e) {
                 e.printStackTrace();
@@ -156,7 +170,21 @@ public class WiFiClientActivity extends AppCompatActivity {
                 "\nIP:" + getIp()
                 + "\n路由：" + getWifiRouteIPAddress(this);
         statusInit.setText(text);
-//        connectSocket();
+        // SEC-1 / Q7: capture the pairing code typed by the user before opening the data connection.
+        String entered = pairCodeInput == null || pairCodeInput.getText() == null
+                ? null
+                : pairCodeInput.getText().toString().trim();
+        if (entered == null || entered.isEmpty()) {
+            textState.setText(R.string.wifi_pair_code_required);
+            return;
+        }
+        pairCode = entered;
+        // Close any stale connection before reconnecting with the new code.
+        if (connectThread != null) {
+            connectThread.closeConnect();
+            connectThread = null;
+        }
+        connectSocket();
     }
 
     /**

@@ -1011,6 +1011,9 @@
     <string name="wifi_server_closed">热点已关闭</string>
     <string name="wifi_server_password">密码: %s</string>
     <string name="wifi_server_no_permission">Insufficient permission, please grant permission</string>
+    <string name="wifi_pair_code">Pairing code: %s</string>
+    <string name="wifi_pair_code_hint">Enter the 6-digit pairing code</string>
+    <string name="wifi_pair_code_required">Please enter the pairing code shown on the sending device</string>
     <!--  wifi server  -->
 
     <!--  limits  -->
