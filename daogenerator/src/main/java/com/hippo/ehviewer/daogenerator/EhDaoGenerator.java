@@ -412,33 +412,33 @@ public class EhDaoGenerator {
 
         javaClass.addMethod("\tpublic JSONObject toJson(){\n" +
                 "\t\tJSONObject jsonObject = super.toJson();\n" +
-                "\t\tjsonObject.put(\"finished\",finished);\n" +
-                "\t\tjsonObject.put(\"legacy\",legacy);\n" +
-                "\t\tjsonObject.put(\"label\",label);\n" +
-                "\t\tjsonObject.put(\"downloaded\",downloaded);\n" +
-                "\t\tjsonObject.put(\"remaining\",remaining);\n" +
-                "\t\tjsonObject.put(\"speed\",speed);\n" +
-                "\t\tjsonObject.put(\"state\",state);\n" +
-                "\t\tjsonObject.put(\"time\",time);\n" +
-                "\t\tjsonObject.put(\"total\",total);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"finished\", finished);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"legacy\", legacy);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"label\", label);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"downloaded\", downloaded);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"remaining\", remaining);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"speed\", speed);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"state\", state);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"time\", time);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"total\", total);\n" +
                 "\t\treturn  jsonObject;\n" +
                 "\t}");
-        javaClass.addImport("com.alibaba.fastjson.JSONObject");
+        javaClass.addImport("com.hippo.ehviewer.util.JsonUtils");
+        javaClass.addImport("org.json.JSONObject");
 
         javaClass.addMethod("\tpublic static DownloadInfo downloadInfoFromJson(JSONObject object) throws ClassCastException {\n" +
                 "\t\tDownloadInfo downloadInfo = (DownloadInfo) GalleryInfo.galleryInfoFromJson(object);\n" +
-                "\t\tdownloadInfo.finished = object.getIntValue(\"finished\");\n" +
-                "\t\tdownloadInfo.legacy = object.getIntValue(\"legacy\");\n" +
-                "\t\tdownloadInfo.label = object.getString(\"label\");\n" +
-                "\t\tdownloadInfo.downloaded = object.getIntValue(\"downloaded\");\n" +
-                "\t\tdownloadInfo.remaining = object.getLongValue(\"remaining\");\n" +
-                "\t\tdownloadInfo.speed = object.getLongValue(\"speed\");\n" +
-                "\t\tdownloadInfo.state = object.getIntValue(\"state\");\n" +
-                "\t\tdownloadInfo.time = object.getLongValue(\"time\");\n" +
-                "\t\tdownloadInfo.total = object.getIntValue(\"total\");\n" +
+                "\t\tdownloadInfo.finished = object.optInt(\"finished\");\n" +
+                "\t\tdownloadInfo.legacy = object.optInt(\"legacy\");\n" +
+                "\t\tdownloadInfo.label = JsonUtils.optStringOrNull(object, \"label\");\n" +
+                "\t\tdownloadInfo.downloaded = object.optInt(\"downloaded\");\n" +
+                "\t\tdownloadInfo.remaining = object.optLong(\"remaining\");\n" +
+                "\t\tdownloadInfo.speed = object.optLong(\"speed\");\n" +
+                "\t\tdownloadInfo.state = object.optInt(\"state\");\n" +
+                "\t\tdownloadInfo.time = object.optLong(\"time\");\n" +
+                "\t\tdownloadInfo.total = object.optInt(\"total\");\n" +
                 "\t\treturn downloadInfo;\n" +
                 "\t}");
-        javaClass.addImport("com.alibaba.fastjson.JSONArray");
         javaClass.addImport("java.util.ArrayList");
 
         FileWriter fileWriter = new FileWriter(DOWNLOAD_INFO_PATH);
@@ -530,32 +530,33 @@ public class EhDaoGenerator {
                 "\tpublic String toString() {\n" +
                 "\t\treturn name;\n" +
                 "\t}");
-        javaClass.addImport("com.alibaba.fastjson.JSONObject");
+        javaClass.addImport("com.hippo.ehviewer.util.JsonUtils");
+        javaClass.addImport("org.json.JSONObject");
 
         javaClass.addMethod("public JSONObject toJson(){\n" +
                 "\t\tJSONObject object = new JSONObject();\n" +
-                "\t\tobject.put(\"name\",name);\n" +
-                "\t\tobject.put(\"mode\",mode);\n" +
-                "\t\tobject.put(\"category\",category);\n" +
-                "\t\tobject.put(\"keyword\",keyword);\n" +
-                "\t\tobject.put(\"advanceSearch\",advanceSearch);\n" +
-                "\t\tobject.put(\"minRating\",minRating);\n" +
-                "\t\tobject.put(\"pageFrom\",pageFrom);\n" +
-                "\t\tobject.put(\"pageTo\",pageTo);\n" +
-                "\t\tobject.put(\"time\",time);\n" +
+                "\t\tJsonUtils.put(object, \"name\", name);\n" +
+                "\t\tJsonUtils.put(object, \"mode\", mode);\n" +
+                "\t\tJsonUtils.put(object, \"category\", category);\n" +
+                "\t\tJsonUtils.put(object, \"keyword\", keyword);\n" +
+                "\t\tJsonUtils.put(object, \"advanceSearch\", advanceSearch);\n" +
+                "\t\tJsonUtils.put(object, \"minRating\", minRating);\n" +
+                "\t\tJsonUtils.put(object, \"pageFrom\", pageFrom);\n" +
+                "\t\tJsonUtils.put(object, \"pageTo\", pageTo);\n" +
+                "\t\tJsonUtils.put(object, \"time\", time);\n" +
                 "\t\treturn object;\n" +
                 "\t}");
         javaClass.addMethod("public static QuickSearch quickSearchFromJson(JSONObject object){\n" +
                 "\t\tQuickSearch search = new QuickSearch();\n" +
-                "\t\tsearch.name = object.getString(\"name\");\n" +
-                "\t\tsearch.mode = object.getIntValue(\"mode\");\n" +
-                "\t\tsearch.category = object.getIntValue(\"category\");\n" +
-                "\t\tsearch.keyword = object.getString(\"keyword\");\n" +
-                "\t\tsearch.advanceSearch = object.getIntValue(\"advanceSearch\");\n" +
-                "\t\tsearch.minRating = object.getIntValue(\"minRating\");\n" +
-                "\t\tsearch.pageFrom = object.getIntValue(\"pageFrom\");\n" +
-                "\t\tsearch.pageTo = object.getIntValue(\"pageTo\");\n" +
-                "\t\tsearch.time = object.getLongValue(\"time\");\n" +
+                "\t\tsearch.name = JsonUtils.optStringOrNull(object, \"name\");\n" +
+                "\t\tsearch.mode = object.optInt(\"mode\");\n" +
+                "\t\tsearch.category = object.optInt(\"category\");\n" +
+                "\t\tsearch.keyword = JsonUtils.optStringOrNull(object, \"keyword\");\n" +
+                "\t\tsearch.advanceSearch = object.optInt(\"advanceSearch\");\n" +
+                "\t\tsearch.minRating = object.optInt(\"minRating\");\n" +
+                "\t\tsearch.pageFrom = object.optInt(\"pageFrom\");\n" +
+                "\t\tsearch.pageTo = object.optInt(\"pageTo\");\n" +
+                "\t\tsearch.time = object.optLong(\"time\");\n" +
                 "\t\treturn search;\n" +
                 "\t}");
 

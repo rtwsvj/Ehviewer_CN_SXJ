@@ -30,7 +30,8 @@ import androidx.annotation.DimenRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.alibaba.fastjson.JSONObject;
+import org.json.JSONException;
+import org.json.JSONObject;
 import com.hippo.ehviewer.client.EhConfig;
 import com.hippo.ehviewer.client.EhUtils;
 import com.hippo.ehviewer.client.data.FavListUrlBuilder;
@@ -102,11 +103,15 @@ public class Settings {
         if (s.isEmpty()){
             return null;
         }
-        return GalleryInfo.galleryInfoFromJson(JSONObject.parseObject(s));
+        try {
+            return GalleryInfo.galleryInfoFromJson(new JSONObject(s));
+        } catch (JSONException e) {
+            return null;
+        }
     }
 
     public static void putArchiverDownload(long downloadId,GalleryInfo info){
-        sArchiverPre.edit().putString(String.valueOf(downloadId),info.toJson().toJSONString()).apply();
+        sArchiverPre.edit().putString(String.valueOf(downloadId),info.toJson().toString()).apply();
     }
 
     public static boolean deleteArchiverDownload(long downloadId){

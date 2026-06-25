@@ -21,16 +21,17 @@ import android.util.SparseArray;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
 import com.hippo.ehviewer.client.EhUrl;
 import com.hippo.ehviewer.client.data.GalleryInfo;
 import com.hippo.ehviewer.dao.DownloadInfo;
 import com.hippo.ehviewer.spider.SpiderDen;
 import com.hippo.ehviewer.spider.SpiderInfo;
+import com.hippo.ehviewer.util.JsonUtils;
 import com.hippo.unifile.UniFile;
 import com.hippo.lib.yorozuya.IOUtils;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -59,10 +60,7 @@ public final class LibraryManifest {
         InputStream is = null;
         try {
             is = manifestFile.openInputStream();
-            JSONObject manifest = JSON.parseObject(IOUtils.readString(is, StandardCharsets.UTF_8.name()));
-            if (manifest == null) {
-                return Record.warning(dir.getName(), "manifest is empty");
-            }
+            JSONObject manifest = new JSONObject(IOUtils.readString(is, StandardCharsets.UTF_8.name()));
 
             DownloadInfo info = readDownloadInfo(manifest);
             if (info == null || info.gid <= 0) {
@@ -94,38 +92,38 @@ public final class LibraryManifest {
         }
 
         JSONObject manifest = new JSONObject();
-        manifest.put("schema", SCHEMA);
-        manifest.put("generatedAt", System.currentTimeMillis());
+        JsonUtils.put(manifest, "schema", SCHEMA);
+        JsonUtils.put(manifest, "generatedAt", System.currentTimeMillis());
 
         JSONObject source = new JSONObject();
-        source.put("type", "ehentai");
-        source.put("gid", galleryInfo.gid);
-        source.put("token", galleryInfo.token);
-        source.put("galleryUrl", EhUrl.getGalleryDetailUrl(galleryInfo.gid, galleryInfo.token));
-        manifest.put("source", source);
+        JsonUtils.put(source, "type", "ehentai");
+        JsonUtils.put(source, "gid", galleryInfo.gid);
+        JsonUtils.put(source, "token", galleryInfo.token);
+        JsonUtils.put(source, "galleryUrl", EhUrl.getGalleryDetailUrl(galleryInfo.gid, galleryInfo.token));
+        JsonUtils.put(manifest, "source", source);
 
-        manifest.put("gallery", galleryInfo.toJson());
+        JsonUtils.put(manifest, "gallery", galleryInfo.toJson());
         if (galleryInfo instanceof DownloadInfo) {
-            manifest.put("download", ((DownloadInfo) galleryInfo).toJson());
+            JsonUtils.put(manifest, "download", ((DownloadInfo) galleryInfo).toJson());
         }
 
         JSONObject reading = new JSONObject();
         if (spiderInfo != null) {
-            reading.put("startPage", spiderInfo.startPage);
-            reading.put("pages", spiderInfo.pages);
-            reading.put("previewPages", spiderInfo.previewPages);
-            reading.put("previewPerPage", spiderInfo.previewPerPage);
+            JsonUtils.put(reading, "startPage", spiderInfo.startPage);
+            JsonUtils.put(reading, "pages", spiderInfo.pages);
+            JsonUtils.put(reading, "previewPages", spiderInfo.previewPages);
+            JsonUtils.put(reading, "previewPerPage", spiderInfo.previewPerPage);
         } else {
-            reading.put("startPage", 0);
-            reading.put("pages", galleryInfo.pages);
+            JsonUtils.put(reading, "startPage", 0);
+            JsonUtils.put(reading, "pages", galleryInfo.pages);
         }
-        manifest.put("reading", reading);
-        manifest.put("files", listFiles(dir));
+        JsonUtils.put(manifest, "reading", reading);
+        JsonUtils.put(manifest, "files", listFiles(dir));
 
         OutputStream os = null;
         try {
             os = manifestFile.openOutputStream();
-            os.write(manifest.toJSONString().getBytes(StandardCharsets.UTF_8));
+            os.write(manifest.toString().getBytes(StandardCharsets.UTF_8));
             os.flush();
             return true;
         } catch (IOException e) {
@@ -158,38 +156,38 @@ public final class LibraryManifest {
                 continue;
             }
             JSONObject fileJson = new JSONObject();
-            fileJson.put("name", name);
-            fileJson.put("length", file.length());
-            filesJson.add(fileJson);
+            JsonUtils.put(fileJson, "name", name);
+            JsonUtils.put(fileJson, "length", file.length());
+            filesJson.put(fileJson);
         }
         return filesJson;
     }
 
     @Nullable
     private static DownloadInfo readDownloadInfo(JSONObject manifest) {
-        JSONObject download = manifest.getJSONObject("download");
+        JSONObject download = manifest.optJSONObject("download");
         if (download != null) {
             return DownloadInfo.downloadInfoFromJson(download);
         }
 
-        JSONObject gallery = manifest.getJSONObject("gallery");
+        JSONObject gallery = manifest.optJSONObject("gallery");
         if (gallery != null) {
             return GalleryInfo.galleryInfoFromJson(gallery).getDownloadInfo(null);
         }
 
-        JSONObject source = manifest.getJSONObject("source");
+        JSONObject source = manifest.optJSONObject("source");
         if (source == null) {
             return null;
         }
         DownloadInfo info = new DownloadInfo();
-        info.gid = source.getLongValue("gid");
-        info.token = source.getString("token");
+        info.gid = source.optLong("gid");
+        info.token = JsonUtils.optStringOrNull(source, "token");
         return info;
     }
 
     @Nullable
     private static SpiderInfo readSpiderInfo(JSONObject manifest, DownloadInfo info) {
-        JSONObject reading = manifest.getJSONObject("reading");
+        JSONObject reading = manifest.optJSONObject("reading");
         if (reading == null) {
             return null;
         }
@@ -197,10 +195,10 @@ public final class LibraryManifest {
         SpiderInfo spiderInfo = new SpiderInfo();
         spiderInfo.gid = info.gid;
         spiderInfo.token = info.token;
-        spiderInfo.startPage = Math.max(0, reading.getIntValue("startPage"));
-        spiderInfo.pages = reading.getIntValue("pages");
-        spiderInfo.previewPages = reading.getIntValue("previewPages");
-        spiderInfo.previewPerPage = reading.getIntValue("previewPerPage");
+        spiderInfo.startPage = Math.max(0, reading.optInt("startPage"));
+        spiderInfo.pages = reading.optInt("pages");
+        spiderInfo.previewPages = reading.optInt("previewPages");
+        spiderInfo.previewPerPage = reading.optInt("previewPerPage");
         if (spiderInfo.pages <= 0) {
             spiderInfo.pages = info.pages;
         }
@@ -212,20 +210,20 @@ public final class LibraryManifest {
 
     private static List<FileEntry> readFiles(JSONObject manifest) {
         List<FileEntry> result = new ArrayList<>();
-        JSONArray files = manifest.getJSONArray("files");
+        JSONArray files = manifest.optJSONArray("files");
         if (files == null) {
             return result;
         }
-        for (int i = 0, n = files.size(); i < n; i++) {
-            JSONObject file = files.getJSONObject(i);
+        for (int i = 0, n = files.length(); i < n; i++) {
+            JSONObject file = files.optJSONObject(i);
             if (file == null) {
                 continue;
             }
-            String name = file.getString("name");
+            String name = JsonUtils.optStringOrNull(file, "name");
             if (name == null) {
                 continue;
             }
-            result.add(new FileEntry(name, file.getLongValue("length")));
+            result.add(new FileEntry(name, file.optLong("length")));
         }
         return result;
     }
