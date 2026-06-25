@@ -11,7 +11,7 @@ import android.util.Log
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
-import com.alibaba.fastjson.JSONObject
+import org.json.JSONObject
 import com.hippo.ehviewer.Analytics
 import com.hippo.ehviewer.R
 import com.hippo.ehviewer.client.EhRequestBuilder
@@ -73,18 +73,18 @@ class UpdateDialog(private val activity: Activity) {
 
     fun showUpdateDialog(tempUpdateData: JSONObject) {
         try {
-            val version = tempUpdateData.getString(AppUpdater.VERSION)
-            val mustUpdate = tempUpdateData.getBooleanValue(AppUpdater.MUST_UPDATE)
+            val version = tempUpdateData.optString(AppUpdater.VERSION, "")
+            val mustUpdate = tempUpdateData.optBoolean(AppUpdater.MUST_UPDATE)
             val updateContent = tempUpdateData.getJSONObject(AppUpdater.UPDATE_CONTENT)
-            val title = updateContent.getString(AppUpdater.TITLE)
-            val contentObs = updateContent.getJSONArray(AppUpdater.CONTENT).toArray()
-            val contentSts: Array<String?> = arrayOfNulls(contentObs.size)
+            val title = updateContent.optString(AppUpdater.TITLE, null)
+            val contentArray = updateContent.getJSONArray(AppUpdater.CONTENT)
+            val contentSts: Array<String?> = arrayOfNulls(contentArray.length())
 
-            for ((index, value) in contentObs.withIndex()) {
-                contentSts[index] = value.toString()
+            for (index in 0 until contentArray.length()) {
+                contentSts[index] = contentArray.opt(index)?.toString()
             }
 
-            val downloadUrl = updateContent.getString(AppUpdater.FILE_DOWNLOAD_URL)
+            val downloadUrl = updateContent.optString(AppUpdater.FILE_DOWNLOAD_URL, "")
             ContextCompat.getMainExecutor(activity).execute {
                 if (!isActivityAlive()) {
                     return@execute
