@@ -64,8 +64,6 @@ public class BlackListActivity extends ToolbarActivity {
         setContentView(R.layout.activity_blacklist);
         setNavigationIcon(R.drawable.v_arrow_left_dark_x24);
 
-        mblackListList = new BlackListList();
-
         mRecyclerView = (EasyRecyclerView) ViewUtils.$$(this, R.id.recycler_view1);
         TextView tip = (TextView) ViewUtils.$$(this, R.id.tip);
         mViewTransition = new ViewTransition(mRecyclerView, tip);
@@ -81,6 +79,19 @@ public class BlackListActivity extends ToolbarActivity {
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         mRecyclerView.hasFixedSize();
         mRecyclerView.setItemAnimator(null);
+
+        // Load the blacklist off the main thread to avoid blocking onCreate (anti-ANR).
+        // The callback runs on the main thread; bail out if the activity was destroyed.
+        EhDB.getAllBlackListAsync(list -> {
+            if (isFinishing() || isDestroyed() || null == mRecyclerView) {
+                return;
+            }
+            mblackListList = new BlackListList(list);
+            if (null != mAdapter) {
+                mAdapter.notifyDataSetChanged();
+            }
+            updateView(true);
+        });
 
         updateView(false);
     }
@@ -332,8 +343,8 @@ public class BlackListActivity extends ToolbarActivity {
 
         private BlackList mTitleHeader;
 
-        public BlackListList() {
-            mTitleBlackList = EhDB.getAllBlackList();
+        public BlackListList(List<BlackList> list) {
+            mTitleBlackList = list != null ? list : new java.util.ArrayList<>();
         }
 
         public int size() {
