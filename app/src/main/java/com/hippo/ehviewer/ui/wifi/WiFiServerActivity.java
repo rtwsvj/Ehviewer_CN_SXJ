@@ -88,12 +88,21 @@ public class WiFiServerActivity extends ToolbarActivity implements AdapterView.O
 
     private int selectIndex = 0;
 
+    /**
+     * SEC-1 / FIX_QUEUE Q7: a random 6-digit pairing code generated once per session and displayed
+     * to the user, who types it into the receiving device. Sent to the peer as the first sync frame.
+     */
+    private String pairCode;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mContext = getApplicationContext();
         setNavigationIcon(R.drawable.v_arrow_left_dark_x24);
         setContentView(R.layout.activity_wifi_server);
+        pairCode = generatePairCode();
+        TextView pairCodeView = findViewById(R.id.pair_code);
+        pairCodeView.setText(getString(R.string.wifi_pair_code, pairCode));
         textState = findViewById(R.id.receive);
         Spinner spinner = findViewById(R.id.migrate_spinner);
         spinner.setOnItemSelectedListener(this);
@@ -161,8 +170,14 @@ public class WiFiServerActivity extends ToolbarActivity implements AdapterView.O
             ip = "192.168.43.1";
         }
         Socket socket = new Socket(ip, PORT);
-        connectThread = new ConnectThread(WiFiServerActivity.this, socket, handler, IS_SERVER);
+        connectThread = new ConnectThread(WiFiServerActivity.this, socket, handler, IS_SERVER, pairCode);
         connectThread.start();
+    }
+
+    /** Generates a fresh random 6-digit pairing code (100000-999999) for this migration session. */
+    private static String generatePairCode() {
+        int code = 100000 + new java.security.SecureRandom().nextInt(900000);
+        return Integer.toString(code);
     }
 
     @Override
@@ -407,7 +422,7 @@ public class WiFiServerActivity extends ToolbarActivity implements AdapterView.O
                         return;
                     }
                     connectThread.closeConnect();
-                    connectThread = new ConnectThread(WiFiServerActivity.this, listenerThread.getSocket(), handler, IS_SERVER);
+                    connectThread = new ConnectThread(WiFiServerActivity.this, listenerThread.getSocket(), handler, IS_SERVER, pairCode);
                     connectThread.start();
                     break;
                 case DEVICE_CONNECTED:
