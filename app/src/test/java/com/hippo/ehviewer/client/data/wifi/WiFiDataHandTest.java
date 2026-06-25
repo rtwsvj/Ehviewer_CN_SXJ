@@ -21,13 +21,20 @@ import static org.junit.Assert.assertTrue;
 
 import java.nio.charset.StandardCharsets;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
 /**
  * Guards FIX_QUEUE Q11: {@link WiFiDataHand#getSendBytes()} must encode as UTF-8 so the receiver
  * (which decodes the frame as UTF-8 in {@code ConnectThread.readFramedPayload}) round-trips
- * non-ASCII payloads — e.g. Chinese quick-search keywords — without corruption. Pure-JVM
- * (org.json only, no Android).
+ * non-ASCII payloads — e.g. Chinese quick-search keywords — without corruption.
+ *
+ * <p>Runs under Robolectric so the real {@code org.json} backing {@link WiFiDataHand} (from
+ * android-all) is on the classpath rather than the throwing {@code android.jar} stub.
  */
+@Config(manifest = Config.NONE)
+@RunWith(RobolectricTestRunner.class)
 public class WiFiDataHandTest {
 
     @Test

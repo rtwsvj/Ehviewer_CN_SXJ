@@ -19,6 +19,9 @@ import com.hippo.ehviewer.client.data.GalleryInfo;
 
 import org.json.JSONObject;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
 import java.util.ArrayList;
 
@@ -27,7 +30,12 @@ import java.util.ArrayList;
  * manifests, the archiver SharedPreferences blob) and the WiFi sync wire format. Pins that field
  * names, shape and non-ASCII content survive a serialize -> string -> parse cycle, and that the
  * persisted JSON string itself re-parses (proving old stored data stays readable).
+ *
+ * <p>Runs under Robolectric so a real {@code org.json} (from android-all) is on the classpath rather
+ * than the throwing {@code android.jar} stub.
  */
+@Config(manifest = Config.NONE)
+@RunWith(RobolectricTestRunner.class)
 public class DaoJsonRoundTripTest {
 
     @Test
