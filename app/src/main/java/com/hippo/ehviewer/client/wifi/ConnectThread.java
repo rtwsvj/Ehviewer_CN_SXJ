@@ -158,7 +158,7 @@ public class ConnectThread extends Thread {
             }
             String received = wiFiDataHand.getData() == null
                     ? null
-                    : wiFiDataHand.getData().getString(PAIR_CODE_KEY);
+                    : wiFiDataHand.getData().optString(PAIR_CODE_KEY, null);
             if (!isPairCodeValid(pairCode, received)) {
                 Log.w("ConnectThread", "Pairing code mismatch; refusing peer.");
                 return false;

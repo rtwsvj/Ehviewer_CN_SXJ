@@ -12,8 +12,8 @@ import static org.junit.Assert.assertNull;
 
 import android.util.SparseArray;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
+import org.json.JSONObject;
+
 import com.hippo.ehviewer.Settings;
 import com.hippo.ehviewer.client.data.GalleryInfo;
 import com.hippo.ehviewer.dao.DownloadInfo;
@@ -129,8 +129,8 @@ public class LibraryManifestTest {
     }
 
     @Test
-    public void galleryInfoFromJsonAcceptsLegacyNestedTagList() {
-        JSONObject json = JSON.parseObject("{"
+    public void galleryInfoFromJsonAcceptsLegacyNestedTagList() throws Exception {
+        JSONObject json = new JSONObject("{"
                 + "\"gid\":12,"
                 + "\"token\":\"tok\","
                 + "\"title\":\"Legacy\","

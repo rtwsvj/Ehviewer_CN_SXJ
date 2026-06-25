@@ -33,7 +33,8 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 
-import com.alibaba.fastjson.JSONArray;
+import org.json.JSONArray;
+
 import com.hippo.ehviewer.Analytics;
 import com.hippo.ehviewer.EhDB;
 import com.hippo.ehviewer.R;
@@ -236,7 +237,7 @@ public class WiFiServerActivity extends ToolbarActivity implements AdapterView.O
                         continue;
                     }
                     GalleryInfo galleryInfo = list.remove(0);
-                    objects.add(galleryInfo.toJson());
+                    objects.put(galleryInfo.toJson());
                 }
                 wiFiDataHand.addData(FAVORITE_INFO_DATA_KEY, objects);
                 dataHands.add(wiFiDataHand);
@@ -266,7 +267,7 @@ public class WiFiServerActivity extends ToolbarActivity implements AdapterView.O
                         continue;
                     }
                     QuickSearch quickSearch = list.remove(0);
-                    objects.add(quickSearch.toJson());
+                    objects.put(quickSearch.toJson());
                 }
                 wiFiDataHand.addData(QUICK_SEARCH_DATA_KEY, objects);
                 dataHands.add(wiFiDataHand);
@@ -286,7 +287,7 @@ public class WiFiServerActivity extends ToolbarActivity implements AdapterView.O
             dataHand.dataType = DATA_TYPE_DOWNLOAD_LABEL;
             JSONArray labelArray = new JSONArray();
             for (int i = 0; i < labels.size(); i++) {
-                labelArray.add(labels.get(i).getLabel());
+                labelArray.put(labels.get(i).getLabel());
 
             }
             dataHand.addData(DOWNLOAD_LABEL_KEY, labelArray);
@@ -307,7 +308,7 @@ public class WiFiServerActivity extends ToolbarActivity implements AdapterView.O
                         continue;
                     }
                     DownloadInfo downloadInfo = allInfo.remove(0);
-                    infoArray.add(downloadInfo.toJson());
+                    infoArray.put(downloadInfo.toJson());
                 }
                 infoHand.addData(DOWNLOAD_INFO_DATA_KEY, infoArray);
                 dataHands.add(infoHand);

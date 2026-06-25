@@ -26,7 +26,7 @@ import org.junit.Test;
  * Guards FIX_QUEUE Q11: {@link WiFiDataHand#getSendBytes()} must encode as UTF-8 so the receiver
  * (which decodes the frame as UTF-8 in {@code ConnectThread.readFramedPayload}) round-trips
  * non-ASCII payloads — e.g. Chinese quick-search keywords — without corruption. Pure-JVM
- * (fastjson only, no Android).
+ * (org.json only, no Android).
  */
 public class WiFiDataHandTest {
 

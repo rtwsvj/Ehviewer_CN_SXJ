@@ -35,8 +35,9 @@ import android.widget.TextView;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import com.hippo.ehviewer.Analytics;
 import com.hippo.ehviewer.EhApplication;
 import com.hippo.ehviewer.EhDB;
@@ -295,10 +296,18 @@ public class WiFiClientActivity extends AppCompatActivity {
     }
 
     private void dealWithFavoriteInfo(WiFiDataHand response) {
-        JSONArray jsonArray = response.getData().getJSONArray(FAVORITE_INFO_DATA_KEY);
+        JSONObject data = response.getData();
+        JSONArray jsonArray = data == null ? null : data.optJSONArray(FAVORITE_INFO_DATA_KEY);
+        if (jsonArray == null) {
+            return;
+        }
         new Thread(()->{
-            for (int i = 0; i < jsonArray.size(); i++) {
-                EhDB.putLocalFavorite(GalleryInfo.galleryInfoFromJson(jsonArray.getJSONObject(i)));
+            for (int i = 0; i < jsonArray.length(); i++) {
+                JSONObject object = jsonArray.optJSONObject(i);
+                if (object == null) {
+                    continue;
+                }
+                EhDB.putLocalFavorite(GalleryInfo.galleryInfoFromJson(object));
             }
             connectThread.dataProcessed(response);
             updateReceiveMessage(getString(R.string.wifi_server_receive_message, response.toString()));
@@ -306,12 +315,20 @@ public class WiFiClientActivity extends AppCompatActivity {
     }
 
     private void dealWithDownloadInfo(WiFiDataHand response) {
-        JSONArray jsonArray = response.getData().getJSONArray(DOWNLOAD_INFO_DATA_KEY);
+        JSONObject data = response.getData();
+        JSONArray jsonArray = data == null ? null : data.optJSONArray(DOWNLOAD_INFO_DATA_KEY);
+        if (jsonArray == null) {
+            return;
+        }
         DownloadManager manager = EhApplication.getDownloadManager();
         new Thread(()->{
-            for (int i = 0; i < jsonArray.size(); i++) {
+            for (int i = 0; i < jsonArray.length(); i++) {
                try{
-                   DownloadInfo info = DownloadInfo.downloadInfoFromJson(jsonArray.getJSONObject(i));
+                   JSONObject object = jsonArray.optJSONObject(i);
+                   if (object == null) {
+                       continue;
+                   }
+                   DownloadInfo info = DownloadInfo.downloadInfoFromJson(object);
                    manager.addDownloadInfo(info,info.label);
                }catch (ClassCastException e){
                    Analytics.recordException(e);
@@ -323,11 +340,15 @@ public class WiFiClientActivity extends AppCompatActivity {
     }
 
     private void dealWithDownloadLabel(WiFiDataHand response) {
-        JSONArray jsonArray = response.getData().getJSONArray(DOWNLOAD_LABEL_KEY);
+        JSONObject data = response.getData();
+        JSONArray jsonArray = data == null ? null : data.optJSONArray(DOWNLOAD_LABEL_KEY);
+        if (jsonArray == null) {
+            return;
+        }
         DownloadManager manager = EhApplication.getDownloadManager();
         new Thread(()->{
-            for (int i = 0; i < jsonArray.size(); i++) {
-                manager.addLabelInSyncThread(jsonArray.getString(i));
+            for (int i = 0; i < jsonArray.length(); i++) {
+                manager.addLabelInSyncThread(jsonArray.optString(i, null));
             }
             connectThread.dataProcessed(response);
             updateReceiveMessage(getString(R.string.wifi_server_receive_message, response.toString()));
@@ -336,12 +357,19 @@ public class WiFiClientActivity extends AppCompatActivity {
     }
 
     private void dealWithQuickSearch(WiFiDataHand response) {
-        JSONArray jsonArray = response.getData().getJSONArray(QUICK_SEARCH_DATA_KEY);
+        JSONObject data = response.getData();
+        JSONArray jsonArray = data == null ? null : data.optJSONArray(QUICK_SEARCH_DATA_KEY);
+        if (jsonArray == null) {
+            return;
+        }
 
         List<QuickSearch> quickSearchList = new ArrayList<>();
 
-        for (int i = 0; i < jsonArray.size(); i++) {
-            JSONObject object = jsonArray.getJSONObject(i);
+        for (int i = 0; i < jsonArray.length(); i++) {
+            JSONObject object = jsonArray.optJSONObject(i);
+            if (object == null) {
+                continue;
+            }
             quickSearchList.add(QuickSearch.quickSearchFromJson(object));
         }
         new Thread(()->{

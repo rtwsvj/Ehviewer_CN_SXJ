@@ -2,8 +2,10 @@ package com.hippo.ehviewer.client.data.wifi;
 
 import androidx.annotation.NonNull;
 
-import com.alibaba.fastjson.JSONObject;
 import com.hippo.ehviewer.Analytics;
+import com.hippo.ehviewer.util.JsonUtils;
+
+import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
 
@@ -35,12 +37,12 @@ public class WiFiDataHand {
 
     public WiFiDataHand(String msg) {
         try {
-            JSONObject object = JSONObject.parseObject(msg);
-            this.messageType = object.getIntValue("messageType");
-            this.dataType = object.getIntValue("dataType");
-            this.data = object.getJSONObject("data");
-            this.pageSize = object.getLongValue("totalSize");
-            this.pageIndex = object.getLongValue("part");
+            JSONObject object = new JSONObject(msg);
+            this.messageType = object.optInt("messageType");
+            this.dataType = object.optInt("dataType");
+            this.data = object.optJSONObject("data");
+            this.pageSize = object.optLong("totalSize");
+            this.pageIndex = object.optLong("part");
         } catch (Throwable throwable) {
             Analytics.recordException(throwable);
             messageType = ERROR;
@@ -57,7 +59,7 @@ public class WiFiDataHand {
         if (data == null) {
             data = new JSONObject();
         }
-        data.put(key, object);
+        JsonUtils.put(data, key, object);
     }
 
     public void setData(JSONObject data) {
@@ -66,11 +68,11 @@ public class WiFiDataHand {
 
     public JSONObject toJsonObject() {
         JSONObject object = new JSONObject();
-        object.put("messageType", messageType);
-        object.put("dataType", dataType);
-        object.put("data", data);
-        object.put("totalSize", pageSize);
-        object.put("part", pageIndex);
+        JsonUtils.put(object, "messageType", messageType);
+        JsonUtils.put(object, "dataType", dataType);
+        JsonUtils.put(object, "data", data != null ? data : JSONObject.NULL);
+        JsonUtils.put(object, "totalSize", pageSize);
+        JsonUtils.put(object, "part", pageIndex);
         return object;
     }
 

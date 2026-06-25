@@ -21,9 +21,11 @@ import android.os.Parcelable;
 
 import androidx.annotation.Nullable;
 
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
 import com.hippo.ehviewer.dao.DownloadInfo;
+import com.hippo.ehviewer.util.JsonUtils;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -325,76 +327,78 @@ public class GalleryInfo implements Parcelable {
 
     public JSONObject toJson() {
         JSONObject jsonObject = new JSONObject();
-        jsonObject.put("gid", gid);
-        jsonObject.put("token", token);
-        jsonObject.put("title", title);
-        jsonObject.put("titleJpn", titleJpn);
-        jsonObject.put("thumb", thumb);
-        jsonObject.put("category", category);
-        jsonObject.put("posted", posted);
-        jsonObject.put("uploader", uploader);
-        jsonObject.put("rating", rating);
-        jsonObject.put("rated", rated);
-        jsonObject.put("simpleLanguage", simpleLanguage);
+        JsonUtils.put(jsonObject, "gid", gid);
+        JsonUtils.put(jsonObject, "token", token);
+        JsonUtils.put(jsonObject, "title", title);
+        JsonUtils.put(jsonObject, "titleJpn", titleJpn);
+        JsonUtils.put(jsonObject, "thumb", thumb);
+        JsonUtils.put(jsonObject, "category", category);
+        JsonUtils.put(jsonObject, "posted", posted);
+        JsonUtils.put(jsonObject, "uploader", uploader);
+        JsonUtils.put(jsonObject, "rating", (Object) Float.valueOf(rating));
+        JsonUtils.put(jsonObject, "rated", rated);
+        JsonUtils.put(jsonObject, "simpleLanguage", simpleLanguage);
         if (simpleTags != null) {
-            jsonObject.put("simpleTags", simpleTags);
+            JsonUtils.put(jsonObject, "simpleTags", new JSONArray(Arrays.asList(simpleTags)));
         }
-        jsonObject.put("thumbHeight", thumbHeight);
-        jsonObject.put("thumbWidth", thumbWidth);
-        jsonObject.put("spanSize", spanSize);
-        jsonObject.put("spanIndex", spanIndex);
-        jsonObject.put("spanGroupIndex", spanGroupIndex);
-        jsonObject.put("favoriteSlot", favoriteSlot);
-        jsonObject.put("favoriteName", favoriteName);
+        JsonUtils.put(jsonObject, "thumbHeight", thumbHeight);
+        JsonUtils.put(jsonObject, "thumbWidth", thumbWidth);
+        JsonUtils.put(jsonObject, "spanSize", spanSize);
+        JsonUtils.put(jsonObject, "spanIndex", spanIndex);
+        JsonUtils.put(jsonObject, "spanGroupIndex", spanGroupIndex);
+        JsonUtils.put(jsonObject, "favoriteSlot", favoriteSlot);
+        JsonUtils.put(jsonObject, "favoriteName", favoriteName);
         JSONArray tagListJson = new JSONArray();
         if (tgList != null) {
-            tagListJson.addAll(tgList);
+            for (String tag : tgList) {
+                tagListJson.put(tag);
+            }
         }
-        jsonObject.put("tgList", tagListJson);
-        jsonObject.put("pages", pages);
+        JsonUtils.put(jsonObject, "tgList", tagListJson);
+        JsonUtils.put(jsonObject, "pages", pages);
         return jsonObject;
     }
 
     public static GalleryInfo galleryInfoFromJson(JSONObject object) {
         GalleryInfo galleryInfo = new GalleryInfo();
-        galleryInfo.posted = object.getString("posted");
-        galleryInfo.category = object.getIntValue("category");
-        galleryInfo.favoriteName = object.getString("favoriteName");
-        galleryInfo.favoriteSlot = object.getIntValue("favoriteSlot");
-        galleryInfo.gid = object.getLongValue("gid");
-        galleryInfo.pages = object.getIntValue("pages");
-        galleryInfo.rated = object.getBooleanValue("rated");
-        galleryInfo.rating = object.getFloatValue("rating");
-        galleryInfo.simpleLanguage = object.getString("simpleLanguage");
-        JSONArray simpleTagsArr = object.getJSONArray("simpleTags");
+        galleryInfo.posted = JsonUtils.optStringOrNull(object, "posted");
+        galleryInfo.category = object.optInt("category");
+        galleryInfo.favoriteName = JsonUtils.optStringOrNull(object, "favoriteName");
+        galleryInfo.favoriteSlot = object.optInt("favoriteSlot");
+        galleryInfo.gid = object.optLong("gid");
+        galleryInfo.pages = object.optInt("pages");
+        galleryInfo.rated = object.optBoolean("rated");
+        galleryInfo.rating = (float) object.optDouble("rating", 0);
+        galleryInfo.simpleLanguage = JsonUtils.optStringOrNull(object, "simpleLanguage");
+        JSONArray simpleTagsArr = object.optJSONArray("simpleTags");
         if (simpleTagsArr != null) {
             try {
-                galleryInfo.simpleTags = simpleTagsArr.toJavaList(String.class).toArray(new String[0]);
+                galleryInfo.simpleTags = JsonUtils.toStringList(simpleTagsArr).toArray(new String[0]);
             } catch (ClassCastException ignore) {
             }
         }
-        galleryInfo.spanGroupIndex = object.getIntValue("spanGroupIndex");
-        galleryInfo.spanIndex = object.getIntValue("spanIndex");
-        galleryInfo.spanSize = object.getIntValue("spanSize");
-        JSONArray tgArray = object.getJSONArray("tgList");
+        galleryInfo.spanGroupIndex = object.optInt("spanGroupIndex");
+        galleryInfo.spanIndex = object.optInt("spanIndex");
+        galleryInfo.spanSize = object.optInt("spanSize");
+        JSONArray tgArray = object.optJSONArray("tgList");
         if (tgArray != null) {
             try {
-                if (!tgArray.isEmpty() && tgArray.get(0) instanceof JSONArray) {
-                    galleryInfo.tgList = (ArrayList<String>) ((JSONArray) tgArray.get(0)).toJavaList(String.class);
+                if (tgArray.length() > 0 && tgArray.opt(0) instanceof JSONArray) {
+                    galleryInfo.tgList = new ArrayList<>(JsonUtils.toStringList((JSONArray) tgArray.opt(0)));
                 } else {
-                    galleryInfo.tgList = (ArrayList<String>) tgArray.toJavaList(String.class);
+                    galleryInfo.tgList = new ArrayList<>(JsonUtils.toStringList(tgArray));
                 }
             } catch (ClassCastException ignore) {
             }
         }
 
-        galleryInfo.thumb = object.getString("thumb");
-        galleryInfo.thumbHeight = object.getIntValue("thumbHeight");
-        galleryInfo.thumbWidth = object.getIntValue("thumbWidth");
-        galleryInfo.title = object.getString("title");
-        galleryInfo.titleJpn = object.getString("titleJpn");
-        galleryInfo.token = object.getString("token");
-        galleryInfo.uploader = object.getString("uploader");
+        galleryInfo.thumb = JsonUtils.optStringOrNull(object, "thumb");
+        galleryInfo.thumbHeight = object.optInt("thumbHeight");
+        galleryInfo.thumbWidth = object.optInt("thumbWidth");
+        galleryInfo.title = JsonUtils.optStringOrNull(object, "title");
+        galleryInfo.titleJpn = JsonUtils.optStringOrNull(object, "titleJpn");
+        galleryInfo.token = JsonUtils.optStringOrNull(object, "token");
+        galleryInfo.uploader = JsonUtils.optStringOrNull(object, "uploader");
         return galleryInfo;
     }
 }
