@@ -56,8 +56,10 @@ import com.hippo.ehviewer.dao.QuickSearch;
 import com.hippo.ehviewer.dao.QuickSearchDao;
 import com.hippo.ehviewer.download.DownloadManager;
 import com.hippo.util.ExceptionUtils;
+import com.hippo.util.IoThreadPoolExecutor;
 import com.hippo.util.SqlUtils;
 import com.hippo.lib.yorozuya.IOUtils;
+import com.hippo.lib.yorozuya.SimpleHandler;
 import com.hippo.lib.yorozuya.collect.SparseJLArray;
 
 import org.greenrobot.greendao.AbstractDao;
@@ -901,6 +903,61 @@ public class EhDB {
     public static synchronized void clearHistoryInfo() {
         HistoryDao dao = sDaoSession.getHistoryDao();
         dao.deleteAll();
+    }
+
+    /**
+     * Callback for {@link EhDB} async wrappers. {@link #onResult(Object)} is always
+     * invoked on the main (UI) thread.
+     */
+    public interface Callback<T> {
+        void onResult(T result);
+    }
+
+    /**
+     * Runs {@code work} on the shared IO thread pool, then posts its result back to the
+     * main thread and hands it to {@code callback}. Used by the {@code ...Async} wrappers
+     * below to keep heavy synchronous DB reads off the UI thread (anti-ANR) while keeping
+     * the synchronous core methods intact and unit-testable.
+     */
+    private static <T> void runAsync(final java.util.concurrent.Callable<T> work,
+                                     final Callback<T> callback) {
+        IoThreadPoolExecutor.Companion.getInstance().execute(() -> {
+            T result;
+            try {
+                result = work.call();
+            } catch (Throwable t) {
+                ExceptionUtils.throwIfFatal(t);
+                Log.e(TAG, "EhDB async work failed", t);
+                return;
+            }
+            final T finalResult = result;
+            SimpleHandler.getInstance().post(() -> callback.onResult(finalResult));
+        });
+    }
+
+    /**
+     * Async wrapper around {@link #getAllBlackList()}. The full-table read happens on a
+     * background thread; {@code callback} is invoked on the main thread with the result.
+     */
+    public static void getAllBlackListAsync(@NonNull Callback<List<BlackList>> callback) {
+        runAsync(EhDB::getAllBlackList, callback);
+    }
+
+    /**
+     * Async wrapper around {@link #getAllLocalFavorites()}. The full-table read happens on
+     * a background thread; {@code callback} is invoked on the main thread with the result.
+     */
+    public static void getAllLocalFavoritesAsync(@NonNull Callback<List<GalleryInfo>> callback) {
+        runAsync(EhDB::getAllLocalFavorites, callback);
+    }
+
+    /**
+     * Async wrapper around {@link #searchLocalFavorites(String)}. The read happens on a
+     * background thread; {@code callback} is invoked on the main thread with the result.
+     */
+    public static void searchLocalFavoritesAsync(final String query,
+                                                 @NonNull Callback<List<GalleryInfo>> callback) {
+        runAsync(() -> searchLocalFavorites(query), callback);
     }
 
     public static synchronized List<Filter> getAllFilter() {

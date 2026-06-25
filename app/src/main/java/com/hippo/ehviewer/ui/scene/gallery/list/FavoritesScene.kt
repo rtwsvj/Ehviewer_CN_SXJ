@@ -1103,25 +1103,41 @@ class FavoritesScene : BaseScene(), EasyRecyclerView.OnItemClickListener,
 
     private fun onGetFavoritesLocal(keyword: String?, taskId: Int) {
         if (mHelper != null && mHelper!!.isCurrentTask(taskId)) {
-            val list: MutableList<GalleryInfo?>?
-            if (TextUtils.isEmpty(keyword)) {
-                list = EhDB.getAllLocalFavorites()
-            } else {
-                list = EhDB.searchLocalFavorites(keyword)
+            // Read the local favorites off the main thread (anti-ANR). The DB read may be a
+            // full-table scan; the result is delivered back on the main thread. The taskId
+            // staleness guard is re-checked there so a result that arrives after the task has
+            // moved on is discarded, exactly as for the synchronous path.
+            val callback = EhDB.Callback<List<GalleryInfo>> { list ->
+                onGetFavoritesLocalResult(keyword, taskId, list)
             }
-
-            if (list.size == 0) {
-                mHelper!!.onGetPageData(taskId, 0, 0, ArrayList())
-            } else {
-                mHelper!!.onGetPageData(taskId, 1, 0, list)
-            }
-
             if (TextUtils.isEmpty(keyword)) {
-                mFavLocalCount = list.size
-                Settings.putFavLocalCount(mFavLocalCount)
-                if (mDrawerAdapter != null) {
-                    mDrawerAdapter!!.notifyDataSetChanged()
-                }
+                EhDB.getAllLocalFavoritesAsync(callback)
+            } else {
+                EhDB.searchLocalFavoritesAsync(keyword, callback)
+            }
+        }
+    }
+
+    private fun onGetFavoritesLocalResult(
+        keyword: String?,
+        taskId: Int,
+        list: List<GalleryInfo>
+    ) {
+        if (mHelper == null || !mHelper!!.isCurrentTask(taskId)) {
+            return
+        }
+
+        if (list.size == 0) {
+            mHelper!!.onGetPageData(taskId, 0, 0, ArrayList())
+        } else {
+            mHelper!!.onGetPageData(taskId, 1, 0, list)
+        }
+
+        if (TextUtils.isEmpty(keyword)) {
+            mFavLocalCount = list.size
+            Settings.putFavLocalCount(mFavLocalCount)
+            if (mDrawerAdapter != null) {
+                mDrawerAdapter!!.notifyDataSetChanged()
             }
         }
     }
