@@ -168,7 +168,11 @@ public final class SpiderQueen implements Runnable {
 
     private final int downloadTimeout;
 
-    private long receiveBytesBefore;
+    // Read and written by multiple SpiderWorker threads (downloadImage stall-detector). Without
+    // volatile a worker can observe a stale value (no happens-before) and a non-volatile long is
+    // not guaranteed to be read/written atomically, so a torn value is possible on 32-bit VMs.
+    // volatile closes the data race while preserving the existing (cross-worker) semantics.
+    private volatile long receiveBytesBefore;
 
     private SpiderQueen(EhApplication application, @NonNull GalleryInfo galleryInfo) {
         mHttpClient = EhApplication.getOkHttpClient(application);
