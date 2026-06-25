@@ -17,11 +17,13 @@
 package com.hippo.ehviewer.client.parser;
 
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.hippo.ehviewer.EhDB;
 import com.hippo.ehviewer.Settings;
 import com.hippo.ehviewer.client.data.GalleryDetail;
+import com.hippo.ehviewer.client.data.PreviewSet;
 import com.hippo.ehviewer.client.exception.EhException;
 import java.io.InputStream;
 import okio.BufferedSource;
@@ -92,6 +94,99 @@ public class GalleryDetailParserTest {
         Document empty = Jsoup.parse("<html><body></body></html>");
         assertNotNull(GalleryDetailParser.parseTagGroups(empty));
         assertNotNull(GalleryDetailParser.parseComments(empty));
+    }
+
+    // --- preview / thumbnail parsing: the markup the Oct-2024 EH reshuffle (upstream 32e1e689,
+    //     a3a0b62e, 12f2d13d, e1f4d209) reworked. These guard against a regression in the
+    //     PATTERN_*_PREVIEW / PATTERN_*_WITH_LABEL constants and the parseNormalPreviewSet fallback
+    //     ladder. parsePreviewSet() is @NonNull and swallows ParseException internally, so it must
+    //     always return a (possibly empty) set; the regex page-count sub-parsers are strict and may
+    //     throw a declared ParseException on pretty-printed markup — both are graceful. ---
+
+    @Test
+    public void parsePreviewSetIsNonNullAndNeverCrashesOnRealPage() {
+        // gt200 / modern title="Page N:" markup. Pretty-printed -> the single-line regexes may not
+        // match, but parsePreviewSet() must still hand back a non-null set, never crash.
+        Document document = Jsoup.parse(realHtml);
+        PreviewSet ps = GalleryDetailParser.parsePreviewSet(document, realHtml);
+        assertNotNull("parsePreviewSet(doc, body) must be @NonNull", ps);
+
+        PreviewSet psBody = GalleryDetailParser.parsePreviewSet(realHtml);
+        assertNotNull("parsePreviewSet(body) must be @NonNull", psBody);
+    }
+
+    @Test
+    public void parsePreviewSetIsNonNullOnEmptyAndGarbage() {
+        assertNotNull(GalleryDetailParser.parsePreviewSet(""));
+        assertNotNull(GalleryDetailParser.parsePreviewSet("no previews here at all"));
+        assertNotNull(GalleryDetailParser.parsePreviewSet("<html><body><div></div></body></html>"));
+    }
+
+    /**
+     * Positive coverage for the "Thumbnail Labeling != none" small-preview variant
+     * (upstream a3a0b62e / 12f2d13d). The real sample is pretty-printed so the single-line regexes
+     * can't match it; we feed a minimal single-line fragment in that exact shape and assert the
+     * PATTERN_SMALL_PREVIEW / PATTERN_*_WITH_LABEL ladder still extracts the item.
+     */
+    @Test
+    public void parsePreviewSetHandlesSingleLineLabeledSmallPreview() {
+        // Shape: <a href=...><div ...title="Page N: ... width:.. height:.. url(..) ... -NNNpx ...>
+        String fragment =
+                "<a href=\"https://e-hentai.org/s/abc123/12345-1\">"
+                        + "<div class=\"gdtl\" title=\"Page 1: foo.jpg\" "
+                        + "style=\"width:100px;height:142px;"
+                        + "background:transparent url(https://example.org/m/001.jpg) -0px 0 no-repeat\">"
+                        + "</div></a>";
+        PreviewSet ps = GalleryDetailParser.parsePreviewSet(fragment);
+        assertNotNull(ps);
+        assertTrue("expected the small-preview regex ladder to extract >=1 item", ps.size() >= 1);
+        assertNotNull("extracted preview must expose a page url", ps.getPageUrlAt(0));
+    }
+
+    /**
+     * Positive coverage for the labeled-wrapper variant (extra outer &lt;div&gt; that the
+     * PATTERN_*_WITH_LABEL constants from upstream 12f2d13d were added to tolerate).
+     */
+    @Test
+    public void parsePreviewSetHandlesSingleLineLabelWrapperPreview() {
+        String fragment =
+                "<a href=\"https://e-hentai.org/s/def456/12345-2\">"
+                        + "<div>"
+                        + "<div class=\"gdtl\" title=\"Page 2: bar.jpg\" "
+                        + "style=\"width:100px;height:142px;"
+                        + "background:transparent url(https://example.org/m/002.jpg) -100px 0 no-repeat\">"
+                        + "</div></div></a>";
+        PreviewSet ps = GalleryDetailParser.parsePreviewSet(fragment);
+        assertNotNull(ps);
+        assertTrue("expected the *_WITH_LABEL regex ladder to extract >=1 item", ps.size() >= 1);
+    }
+
+    @Test
+    public void regexPageCountSubParsersAreGracefulOnRealPage() {
+        // Strict single-line regexes on a pretty-printed sample: a declared ParseException is the
+        // graceful outcome. The forbidden failure mode is an uncontrolled RuntimeException.
+        assertParseGraceful("parsePages", () -> GalleryDetailParser.parsePages(realHtml));
+        assertParseGraceful("parsePreviewPages", () -> GalleryDetailParser.parsePreviewPages(realHtml));
+        assertParseGraceful("parsePages-empty", () -> GalleryDetailParser.parsePages(""));
+        assertParseGraceful("parsePreviewPages-garbage",
+                () -> GalleryDetailParser.parsePreviewPages("not a page"));
+    }
+
+    @FunctionalInterface
+    private interface ThrowingIntCall {
+        int call() throws EhException;
+    }
+
+    /** Asserts the call returns or throws a declared {@link EhException}, never an uncontrolled one. */
+    private static void assertParseGraceful(String label, ThrowingIntCall call) {
+        try {
+            call.call();
+        } catch (EhException expected) {
+            // Controlled, declared failure — graceful.
+        } catch (RuntimeException crash) {
+            fail(label + " threw uncontrolled " + crash.getClass().getName() + ": "
+                    + crash.getMessage());
+        }
     }
 
     // --- defensive: malformed input must never crash with an uncontrolled exception ---
