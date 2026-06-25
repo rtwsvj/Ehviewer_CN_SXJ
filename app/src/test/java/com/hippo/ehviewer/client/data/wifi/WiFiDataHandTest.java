@@ -38,7 +38,7 @@ import org.robolectric.annotation.Config;
 public class WiFiDataHandTest {
 
     @Test
-    public void getSendBytesRoundTripsNonAsciiViaUtf8() {
+    public void getSendBytesRoundTripsNonAsciiViaUtf8() throws Exception {
         WiFiDataHand hand = new WiFiDataHand(WiFiDataHand.SEND);
         hand.dataType = 1001; // DATA_TYPE_QUICK_SEARCH
         hand.addData("quick_search", "测试关键词 🍜");
