@@ -5,12 +5,11 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.util.Base64;
 
 import androidx.annotation.Nullable;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
+import org.json.JSONException;
+import org.json.JSONObject;
 import com.hippo.ehviewer.EhApplication;
 import com.hippo.ehviewer.client.data.GalleryInfo;
 import com.hippo.ehviewer.client.parser.GalleryDetailUrlParser;
@@ -23,25 +22,6 @@ import com.hippo.util.ExceptionUtils;
 
 
 public class ClipboardUtil {
-
-    private static final JSONObject defaultInfo ;
-
-    static {
-        JSONObject jsonObject = new JSONObject();
-        jsonObject.put("favoriteName",null);
-        jsonObject.put("favoriteSlot",-2);
-        jsonObject.put("pages",0);
-        jsonObject.put("rated",false);
-        jsonObject.put("simpleTags",null);
-        jsonObject.put("thumbWidth",0);
-        jsonObject.put("thumbHeight",0);
-        jsonObject.put("spanSize",0);
-        jsonObject.put("spanIndex",0);
-        jsonObject.put("spanGroupIndex",0);
-
-        defaultInfo = jsonObject;
-    }
-
 
     /**
      * 实现文本复制功能
@@ -95,39 +75,55 @@ public class ClipboardUtil {
 
 
         clearClipboard();
-        JSONObject object = (JSONObject) JSONObject.parse(galleryString);
-
-        if (object == null){
-            return null;
-        }
-        object.putAll(defaultInfo);
-        object.put("time",System.currentTimeMillis());
-        return JSON.toJavaObject(object,GalleryInfo.class);
+        return decodeGalleryInfo(galleryString);
     }
 
     private static String reduceString(GalleryInfo galleryInfo){
-//        String s = "hello world!";
-        LocalFavoriteInfo localFavoriteInfo = (LocalFavoriteInfo)galleryInfo;
-        JSONObject favoriteJson = (JSONObject) JSONObject.toJSON(localFavoriteInfo);
+        LocalFavoriteInfo localFavoriteInfo = (LocalFavoriteInfo) galleryInfo;
+        return GZIPUtils.compress(encodeFavorite(localFavoriteInfo));
+    }
 
-        favoriteJson.remove("favoriteName");
-        favoriteJson.remove("pages");
-        favoriteJson.remove("rated");
-        favoriteJson.remove("spanGroupIndex");
-        favoriteJson.remove("spanIndex");
-        favoriteJson.remove("spanSize");
-        favoriteJson.remove("thumbHeight");
-        favoriteJson.remove("thumbWidth");
-        favoriteJson.remove("time");
-        favoriteJson.remove("favoriteSlot");
+    /**
+     * Serializes a favorite into the clipboard JSON shape exchanged between Ehviewer instances:
+     * a flat object with the gid/token/title/.../simpleLanguage keys (the same names
+     * {@link GalleryInfo#galleryInfoFromJson} reads back). The volatile/derived fields that the
+     * previous fastjson reflection produced and then stripped are simply never written here.
+     * Package-private + static for JVM round-trip testing.
+     */
+    static String encodeFavorite(LocalFavoriteInfo localFavoriteInfo) {
+        JSONObject favoriteJson = new JSONObject();
+        JsonUtils.put(favoriteJson, "gid", localFavoriteInfo.gid);
+        JsonUtils.put(favoriteJson, "token", localFavoriteInfo.token);
+        JsonUtils.put(favoriteJson, "title", localFavoriteInfo.title);
+        JsonUtils.put(favoriteJson, "titleJpn", localFavoriteInfo.titleJpn);
+        JsonUtils.put(favoriteJson, "thumb", localFavoriteInfo.thumb);
+        JsonUtils.put(favoriteJson, "category", localFavoriteInfo.category);
+        JsonUtils.put(favoriteJson, "posted", localFavoriteInfo.posted);
+        JsonUtils.put(favoriteJson, "uploader", localFavoriteInfo.uploader);
+        JsonUtils.put(favoriteJson, "rating", (Object) Float.valueOf(localFavoriteInfo.rating));
+        JsonUtils.put(favoriteJson, "simpleLanguage", localFavoriteInfo.simpleLanguage);
+        return favoriteJson.toString();
+    }
 
-
-
-        String s = JSONObject.toJSONString(favoriteJson);
-        String s1 = new String(Base64.encode(s.getBytes(),Base64.DEFAULT));
-
-        return GZIPUtils.compress(s);
-//        return c;
+    /**
+     * Parses the clipboard JSON produced by {@link #encodeFavorite} (or by an older fastjson build)
+     * back into a {@link GalleryInfo}. {@link GalleryInfo#galleryInfoFromJson} supplies the remaining
+     * defaults (favoriteSlot=-2, pages=0, rated=false, ...), matching the previous behaviour of
+     * merging defaultInfo before binding. Returns {@code null} for empty/malformed input.
+     * Package-private + static for JVM round-trip testing.
+     */
+    @Nullable
+    static GalleryInfo decodeGalleryInfo(@Nullable String galleryString) {
+        if (galleryString == null || galleryString.isEmpty()) {
+            return null;
+        }
+        JSONObject object;
+        try {
+            object = new JSONObject(galleryString);
+        } catch (JSONException e) {
+            return null;
+        }
+        return GalleryInfo.galleryInfoFromJson(object);
     }
 
     /**
