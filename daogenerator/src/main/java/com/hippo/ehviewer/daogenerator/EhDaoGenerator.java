@@ -124,11 +124,28 @@ public class EhDaoGenerator {
 
         javaClass.addMethod("\t@Override\n" +
                 "\tpublic String toString() {\n" +
-                "\t\tJSONObject jsonObject = (JSONObject) JSONObject.toJSON(this);\n" +
-                "\t\treturn jsonObject.toJSONString();\n" +
+                "\t\tJSONObject jsonObject = new JSONObject();\n" +
+                "\t\tJsonUtils.put(jsonObject, \"gid\", gid);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"rows\", rows);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"artist\", artist);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"cosplayer\", cosplayer);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"character\", character);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"female\", female);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"group\", group);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"language\", language);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"male\", male);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"misc\", misc);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"mixed\", mixed);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"other\", other);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"parody\", parody);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"reclass\", reclass);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"create_time\", create_time != null ? create_time.getTime() : null);\n" +
+                "\t\tJsonUtils.put(jsonObject, \"update_time\", update_time != null ? update_time.getTime() : null);\n" +
+                "\t\treturn jsonObject.toString();\n" +
                 "\t}");
 
-        javaClass.addImport("com.alibaba.fastjson.JSONObject");
+        javaClass.addImport("com.hippo.ehviewer.util.JsonUtils");
+        javaClass.addImport("org.json.JSONObject");
 
         FileWriter fileWriter = new FileWriter(GALLERY_TAG_PATH);
         fileWriter.write(javaClass.toString());
