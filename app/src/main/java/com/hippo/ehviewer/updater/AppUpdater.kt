@@ -5,9 +5,8 @@ import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import androidx.core.content.ContextCompat
-import com.alibaba.fastjson.JSON
-import com.alibaba.fastjson.JSONException
-import com.alibaba.fastjson.JSONObject
+import org.json.JSONException
+import org.json.JSONObject
 import com.hippo.ehviewer.Analytics
 import com.hippo.ehviewer.AppConfig
 import com.hippo.ehviewer.BuildConfig
@@ -38,7 +37,7 @@ class AppUpdater(private val name: String, source: BufferedSource) {
 
     init {
         val jsonObject: JSONObject = try {
-            JSONObject.parseObject(source.readUtf8())
+            JSONObject(source.readUtf8())
         } catch (e: JSONException) {
             JSONObject()
         }
@@ -138,9 +137,9 @@ class AppUpdater(private val name: String, source: BufferedSource) {
                     }
 
                     val needUpdate: Boolean
-                    // 使用FastJSON的parseObject方法解析JSON内容
+                    // Parse the freshly downloaded update metadata.
                     val tempUpdateData =
-                        JSON.parseObject(FileUtils.read(tempDataFile))
+                        JSONObject(FileUtils.read(tempDataFile))
 
                     // Check new data
                     needUpdate = if (instance != null) {
@@ -194,13 +193,13 @@ class AppUpdater(private val name: String, source: BufferedSource) {
                 val currentVersionCode = BuildConfig.VERSION_CODE
                 var updateResult: Int
                 if (updateData != null) {
-                    val version1 = updateData.getString(VERSION) ?: "0.0.0"
-                    val version2 = tempUpdateData.getString(VERSION) ?: "0.0.0"
+                    val version1 = updateData.optString(VERSION, null) ?: "0.0.0"
+                    val version2 = tempUpdateData.optString(VERSION, null) ?: "0.0.0"
                     updateResult = compareVersion(version1, version2)
                     if (updateResult < 0) {
                         return true
                     } else if (updateResult == 0) {
-                        if (updateData.getInteger(VERSION_CODE) < tempUpdateData.getInteger(
+                        if (updateData.optInt(VERSION_CODE) < tempUpdateData.optInt(
                                 VERSION_CODE
                             )
                         ) {
@@ -211,10 +210,10 @@ class AppUpdater(private val name: String, source: BufferedSource) {
                         return false
                     }
                 }
-                updateResult = compareVersion(currentVersion, tempUpdateData.getString(VERSION))
+                updateResult = compareVersion(currentVersion, tempUpdateData.optString(VERSION, "0.0.0"))
                 return if (updateResult < 0) {
                     true
-                } else currentVersionCode < tempUpdateData.getInteger(VERSION_CODE)
+                } else currentVersionCode < tempUpdateData.optInt(VERSION_CODE)
             } catch (e: JSONException) {
                 Log.e(TAG, e.message, e)
                 Analytics.recordException(e)
