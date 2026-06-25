@@ -37,6 +37,17 @@ public class ConnectThread extends Thread {
     public static final int DATA_TYPE_FAVORITE_INFO = 1004;
     public static final String FAVORITE_INFO_DATA_KEY = "favorite_info";
 
+    /**
+     * Pairing handshake (SEC-1 / FIX_QUEUE Q7). The data source (IS_SERVER) sends a single frame of
+     * this type as its FIRST transmission, carrying the 6-digit code the user reads off the sender's
+     * screen. The data sink (IS_CLIENT) must receive a matching code before it dispatches/persists
+     * ANY data frame; a mismatch (or a non-pairing first frame) tears the connection down.
+     * NOTE: this is a wire-protocol change — old and new builds are incompatible and BOTH ends must
+     * be updated together.
+     */
+    public static final int DATA_TYPE_PAIR = 1000;
+    public static final String PAIR_CODE_KEY = "pair_code";
+
     /** Hard cap on a single WiFi-sync payload so a peer that never sends the terminator can't OOM us. */
     static final int MAX_PAYLOAD = 8 * 1024 * 1024;
     /** Frame terminator; only ":END" (4 bytes) is stripped, the closing '}' stays part of the JSON. */
@@ -45,6 +56,8 @@ public class ConnectThread extends Thread {
     private final Socket socket;
     private final Handler handler;
     private final int connectKind;
+    /** The 6-digit code shown on the sender and typed into the receiver; required by both ends. */
+    private final String pairCode;
     private OutputStream outputStream;
     Context context;
 
@@ -52,13 +65,21 @@ public class ConnectThread extends Thread {
 
     private boolean close = false;
 
+    /** Receiver-side gate: until a valid pairing frame arrives, no data frame is dispatched/persisted. */
+    private boolean paired = false;
+
     public ConnectThread(Context context, Socket socket, Handler handler, int connectKind) {
+        this(context, socket, handler, connectKind, null);
+    }
+
+    public ConnectThread(Context context, Socket socket, Handler handler, int connectKind, String pairCode) {
         setName("ConnectThread");
         Log.i("ConnectThread", "ConnectThread");
         this.connectKind = connectKind;
         this.socket = socket;
         this.handler = handler;
         this.context = context;
+        this.pairCode = pairCode;
     }
 
     @Override
@@ -71,6 +92,12 @@ public class ConnectThread extends Thread {
             InputStream inputStream = socket.getInputStream();
             outputStream = socket.getOutputStream();
 
+            // SEC-1 / Q7 handshake: the sender announces the pairing code as its very first frame so the
+            // receiver can authenticate the peer before persisting anything.
+            if (connectKind == IS_SERVER) {
+                sendPairFrame();
+            }
+
             while (!isInterrupted()) {
                 //获取数据流
                 WiFiDataHand wiFiDataHand = isToResponse(inputStream);
@@ -79,7 +106,9 @@ public class ConnectThread extends Thread {
                 }
                 if (wiFiDataHand != null) {
                     if (connectKind == IS_CLIENT) {
-                        solveTheData(wiFiDataHand);
+                        if (!solveTheData(wiFiDataHand)) {
+                            break;
+                        }
                     } else {
                         sendNextData(wiFiDataHand);
                     }
@@ -89,6 +118,14 @@ public class ConnectThread extends Thread {
         } catch (IOException e) {
             Analytics.recordException(e);
         }
+    }
+
+    /** Sender side: transmit the pairing code as the first frame on the wire. */
+    private void sendPairFrame() {
+        WiFiDataHand pair = new WiFiDataHand(WiFiDataHand.SEND);
+        pair.dataType = DATA_TYPE_PAIR;
+        pair.addData(PAIR_CODE_KEY, pairCode == null ? "" : pairCode);
+        sendData(pair);
     }
 
     private void sendNextData(WiFiDataHand wiFiDataHand) {
@@ -103,9 +140,36 @@ public class ConnectThread extends Thread {
         handler.sendMessage(message);
     }
 
-    private void solveTheData(WiFiDataHand wiFiDataHand) {
+    /**
+     * Receiver side. Authenticates and dispatches one incoming frame.
+     *
+     * @return {@code true} to keep the connection open, {@code false} to tear it down (auth failure).
+     */
+    private boolean solveTheData(WiFiDataHand wiFiDataHand) {
         if (wiFiDataHand.messageType != WiFiDataHand.SEND) {
-            return;
+            // Non-data control/ack frames are ignored but don't affect the connection.
+            return true;
+        }
+        // SEC-1 / Q7: the FIRST data frame must be a valid pairing frame. Reject everything until then.
+        if (!paired) {
+            if (wiFiDataHand.dataType != DATA_TYPE_PAIR) {
+                Log.w("ConnectThread", "First frame was not a pairing frame; refusing peer.");
+                return false;
+            }
+            String received = wiFiDataHand.getData() == null
+                    ? null
+                    : wiFiDataHand.getData().getString(PAIR_CODE_KEY);
+            if (!isPairCodeValid(pairCode, received)) {
+                Log.w("ConnectThread", "Pairing code mismatch; refusing peer.");
+                return false;
+            }
+            paired = true;
+            return true;
+        }
+        // After pairing, only whitelisted data types are dispatched for persistence.
+        if (!isKnownDataType(wiFiDataHand.dataType)) {
+            Log.w("ConnectThread", "Rejecting unknown dataType: " + wiFiDataHand.dataType);
+            return true;
         }
         Message message = Message.obtain();
         message.what = GET_MSG;
@@ -113,6 +177,7 @@ public class ConnectThread extends Thread {
         bundle.putString("MSG", wiFiDataHand.toString());
         message.setData(bundle);
         handler.sendMessage(message);
+        return true;
     }
 
 
@@ -183,6 +248,35 @@ public class ConnectThread extends Thread {
             }
         }
         return buffer.size() == 0 ? null : buffer.toString("UTF-8");
+    }
+
+    /**
+     * Whether {@code dataType} is one of the known persistable {@code DATA_TYPE_*} payload kinds.
+     * The pairing handshake type is intentionally NOT included: a pairing frame must never be treated
+     * as data to persist. Pure + static so it can be unit-tested on the JVM.
+     */
+    static boolean isKnownDataType(int dataType) {
+        return dataType == DATA_TYPE_QUICK_SEARCH
+                || dataType == DATA_TYPE_DOWNLOAD_INFO
+                || dataType == DATA_TYPE_DOWNLOAD_LABEL
+                || dataType == DATA_TYPE_FAVORITE_INFO;
+    }
+
+    /**
+     * Constant-time-ish equality check of the expected pairing code against the code carried by an
+     * incoming frame. Both are trimmed; a null/blank expected or actual code never matches. Kept
+     * pure + static for JVM unit testing (no Android dependencies).
+     */
+    static boolean isPairCodeValid(String expected, String actual) {
+        if (expected == null || actual == null) {
+            return false;
+        }
+        String e = expected.trim();
+        String a = actual.trim();
+        if (e.isEmpty() || a.isEmpty()) {
+            return false;
+        }
+        return e.equals(a);
     }
 
     /** ByteArrayOutputStream that can test its raw byte tail in O(marker) without copying the buffer. */
