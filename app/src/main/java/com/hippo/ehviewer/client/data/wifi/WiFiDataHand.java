@@ -5,6 +5,8 @@ import androidx.annotation.NonNull;
 import com.alibaba.fastjson.JSONObject;
 import com.hippo.ehviewer.Analytics;
 
+import java.nio.charset.StandardCharsets;
+
 public class WiFiDataHand {
     public final static int ERROR = 0;
     public final static int RECEIVED = 1;
@@ -83,6 +85,9 @@ public class WiFiDataHand {
     }
 
     public byte[] getSendBytes() {
-        return toSendString().getBytes();
+        // Encode as UTF-8 to match the receiver, which decodes the frame as UTF-8
+        // (ConnectThread.readFramedPayload). Using the platform default charset here would
+        // corrupt non-ASCII payloads (e.g. Chinese quick-search keywords / tag names) across devices.
+        return toSendString().getBytes(StandardCharsets.UTF_8);
     }
 }
