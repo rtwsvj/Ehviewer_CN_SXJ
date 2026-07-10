@@ -246,6 +246,26 @@ public class LibraryScannerTest {
         assertEquals(1, scanned.legacy);
     }
 
+    @Test
+    public void zeroByteImageDoesNotCompleteGallery() throws Exception {
+        File rootFile = folder.newFolder("zero-byte-scan-library");
+        File dirFile = new File(rootFile, "701-zero");
+        assertTrue(dirFile.mkdir());
+        writeFile(new File(dirFile, "00000001.jpg"), new byte[0]);
+
+        DownloadInfo info = new DownloadInfo(701L);
+        info.token = "token";
+        info.title = "Zero byte";
+        info.pages = 1;
+        assertTrue(LibraryManifest.write(info, null, UniFile.fromFile(dirFile)));
+
+        LibraryScanner.Result result = LibraryScanner.scan(UniFile.fromFile(rootFile));
+
+        assertEquals(1, result.items.size());
+        assertFalse(result.items.get(0).complete);
+        assertEquals(0, result.items.get(0).imageCount);
+    }
+
     private static void resetDb() {
         Context app = RuntimeEnvironment.application;
         app.deleteDatabase("eh.db");
@@ -277,6 +297,12 @@ public class LibraryScannerTest {
     private static void writeFile(File file, String value) throws Exception {
         try (FileOutputStream os = new FileOutputStream(file)) {
             os.write(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+    }
+
+    private static void writeFile(File file, byte[] value) throws Exception {
+        try (FileOutputStream os = new FileOutputStream(file)) {
+            os.write(value);
         }
     }
 

@@ -157,7 +157,9 @@ public final class LibraryScanner {
         int count = 0;
         for (UniFile file : files) {
             String name = file.getName();
-            if (file.isFile() && name != null && isSupportedImage(name)) {
+            if (file.isFile() && name != null && isSupportedImage(name)
+                    && LibraryImageFilePolicy.inspect(file)
+                    == LibraryImageFilePolicy.ContentState.NON_EMPTY) {
                 count++;
             }
         }

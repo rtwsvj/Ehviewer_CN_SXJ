@@ -109,6 +109,45 @@ public class InvalidDownloadScannerTest {
         assertTrue(new File(malformed, DownloadManager.DOWNLOAD_INFO_FILENAME).isFile());
     }
 
+    @Test
+    public void unavailableRootIsReportedInsteadOfLookingClean() {
+        InvalidDownloadScanner.Result result = InvalidDownloadScanner.scan(null);
+
+        assertEquals(0, result.scanned);
+        assertEquals(1, result.issues.size());
+        assertTrue(result.issues.get(0).message.contains("unavailable"));
+    }
+
+    @Test
+    public void zeroByteImagesAreNotCountedAsValidPages() throws Exception {
+        File root = folder.newFolder("zero-byte-library");
+        File gallery = new File(root, "400-token");
+        assertTrue(gallery.mkdir());
+        writeFile(gallery, "00000001.jpg", new byte[0]);
+        writeInfo(gallery, 1);
+
+        InvalidDownloadScanner.Result result =
+                InvalidDownloadScanner.scan(UniFile.fromFile(root));
+
+        assertEquals(2, result.issues.size());
+        assertTrue(result.issues.get(0).message.contains("Empty image"));
+        assertTrue(result.issues.get(1).message.contains("actual: 0"));
+    }
+
+    @Test
+    public void zeroPageMetadataIsRejected() throws Exception {
+        File root = folder.newFolder("zero-page-library");
+        File gallery = new File(root, "401-token");
+        assertTrue(gallery.mkdir());
+        writeInfo(gallery, 0);
+
+        InvalidDownloadScanner.Result result =
+                InvalidDownloadScanner.scan(UniFile.fromFile(root));
+
+        assertEquals(1, result.issues.size());
+        assertTrue(result.issues.get(0).message.contains("Invalid page count: 0"));
+    }
+
     private static File writeInfo(File dir, int pages) throws Exception {
         String content = "100\n"
                 + "token\n"

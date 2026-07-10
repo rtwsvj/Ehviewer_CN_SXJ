@@ -36,6 +36,8 @@ public final class InvalidDownloadScanner {
     public static Result scan(@Nullable UniFile downloadDir) {
         List<Issue> issues = new ArrayList<>();
         if (downloadDir == null || !downloadDir.isDirectory()) {
+            issues.add(new Issue(downloadDir != null ? downloadDir.getName() : null,
+                    "Download directory is unavailable"));
             return new Result(0, issues);
         }
 
@@ -78,7 +80,15 @@ public final class InvalidDownloadScanner {
             if (DownloadManager.DOWNLOAD_INFO_FILENAME.equals(name)) {
                 infoFile = file;
             } else if (isSupportedImage(name)) {
-                actualImages++;
+                LibraryImageFilePolicy.ContentState state =
+                        LibraryImageFilePolicy.inspect(file);
+                if (state == LibraryImageFilePolicy.ContentState.EMPTY) {
+                    issues.add(new Issue(directoryName, "Empty image file: " + name));
+                } else if (state == LibraryImageFilePolicy.ContentState.UNREADABLE) {
+                    issues.add(new Issue(directoryName, "Unreadable image file: " + name));
+                } else {
+                    actualImages++;
+                }
             }
         }
         if (infoFile == null || !infoFile.isFile()) {
@@ -94,7 +104,7 @@ public final class InvalidDownloadScanner {
             return;
         }
 
-        if (expectedPages < 0) {
+        if (expectedPages <= 0) {
             issues.add(new Issue(directoryName, "Invalid page count: " + expectedPages));
             return;
         }
