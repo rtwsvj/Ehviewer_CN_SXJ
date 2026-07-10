@@ -99,9 +99,10 @@ public class DownloadCsvParserTest {
     }
 
     @Test
-    public void persistedUnknownPagesAndMissingThumbStillRoundTrip() throws Exception {
+    public void persistedUnknownPagesAndNullableDisplayFieldsStillRoundTrip() throws Exception {
         GalleryInfo original = record(7L);
         original.pages = 0;
+        original.title = null;
         original.thumb = null;
         String data = DownloadCsvParser.EXPORT_HEADER + "\n"
                 + DownloadCsvParser.toExportLine(original) + "\n";
@@ -110,6 +111,7 @@ public class DownloadCsvParserTest {
 
         assertEquals(1, result.records.size());
         assertEquals(0, result.records.get(0).pages);
+        assertNull(result.records.get(0).title);
         assertNull(result.records.get(0).thumb);
     }
 

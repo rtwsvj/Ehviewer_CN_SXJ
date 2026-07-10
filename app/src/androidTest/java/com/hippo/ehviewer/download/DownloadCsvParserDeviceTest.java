@@ -22,7 +22,7 @@ public class DownloadCsvParserDeviceTest {
     @Test
     public void versionedJsonLinesParsesOnTheMinimumApi() throws Exception {
         String data = DownloadCsvParser.EXPORT_HEADER + "\n"
-                + "{\"gid\":1,\"token\":\"token\",\"title\":\"title\",\"pages\":0}\n";
+                + "{\"gid\":1,\"token\":\"token\",\"pages\":0}\n";
 
         DownloadCsvParser.Result result = DownloadCsvParser.parse(
                 new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8)));

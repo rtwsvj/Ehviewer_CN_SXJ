@@ -212,11 +212,11 @@ public final class DownloadCsvParser {
             Object gid = object.opt("gid");
             Object pages = object.opt("pages");
             Object token = object.opt("token");
-            Object title = object.opt("title");
             if (!isPositiveIntegral(gid, Long.MAX_VALUE)
                     || !isNonNegativeIntegral(pages, Integer.MAX_VALUE)
                     || !isNonEmptyString(token)
-                    || !isNonEmptyString(title)
+                    || (object.has("title") && !object.isNull("title")
+                    && !(object.opt("title") instanceof String))
                     || (object.has("thumb") && !object.isNull("thumb")
                     && !(object.opt("thumb") instanceof String))) {
                 throw new JSONException("Missing or invalid required download fields");
