@@ -16,12 +16,8 @@
 
 package com.hippo.ehviewer.preference;
 
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.util.AttributeSet;
-import android.widget.Toast;
-import androidx.appcompat.app.AlertDialog;
 import com.hippo.ehviewer.EhApplication;
 import com.hippo.ehviewer.R;
 import com.hippo.ehviewer.client.EhCookieStore;
@@ -34,8 +30,6 @@ import okhttp3.Cookie;
 import okhttp3.HttpUrl;
 
 public class IdentityCookiePreference extends MessagePreference {
-
-    private String message;
 
     public IdentityCookiePreference(Context context) {
         super(context);
@@ -78,28 +72,19 @@ public class IdentityCookiePreference extends MessagePreference {
             }
         }
 
-        if (ipbMemberId != null || ipbPassHash != null || igneous != null) {
-            message = EhCookieStore.KEY_IPD_MEMBER_ID + ": " + ipbMemberId + "<br>"
-                    + EhCookieStore.KEY_IPD_PASS_HASH + ": " + ipbPassHash + "<br>"
-                    + EhCookieStore.KEY_IGNEOUS + ": " + igneous;
-            setDialogMessage(Html.fromHtml(getContext().getString(R.string.settings_eh_identity_cookies_signed, message)));
-            message = message.replace("<br>", "\n");
-        } else {
-            setDialogMessage(getContext().getString(R.string.settings_eh_identity_cookies_tourist));
-        }
+        setDialogMessage(buildDialogMessage(getContext(),
+                hasIdentityCookie(ipbMemberId, ipbPassHash, igneous)));
     }
 
-    @Override
-    protected void onPrepareDialogBuilder(AlertDialog.Builder builder) {
-        super.onPrepareDialogBuilder(builder);
-        if (message != null) {
-            builder.setPositiveButton(R.string.settings_eh_identity_cookies_copy, (dialog, which) -> {
-                ClipboardManager cmb = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
-                cmb.setPrimaryClip(ClipData.newPlainText(null, message));
-                Toast.makeText(getContext(), R.string.copied_to_clipboard, Toast.LENGTH_SHORT).show();
+    static boolean hasIdentityCookie(String memberId, String passHash, String igneous) {
+        return memberId != null || passHash != null || igneous != null;
+    }
 
-                IdentityCookiePreference.this.onClick(dialog, which);
-            });
+    static CharSequence buildDialogMessage(Context context, boolean signedIn) {
+        if (!signedIn) {
+            return context.getString(R.string.settings_eh_identity_cookies_tourist);
         }
+        // Do not render or copy reusable authentication material in a settings dialog.
+        return Html.fromHtml(context.getString(R.string.settings_eh_identity_cookies_present));
     }
 }
