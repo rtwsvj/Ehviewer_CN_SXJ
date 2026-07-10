@@ -35,6 +35,7 @@ import com.hippo.ehviewer.EhDB;
 import com.hippo.ehviewer.R;
 import com.hippo.ehviewer.Settings;
 import com.hippo.ehviewer.client.data.GalleryInfo;
+import com.hippo.ehviewer.download.DownloadCsvParser;
 import com.hippo.ehviewer.download.DownloadManager;
 import com.hippo.ehviewer.library.InvalidDownloadScanner;
 import com.hippo.ehviewer.library.LibraryScanner;
@@ -43,7 +44,6 @@ import com.hippo.ehviewer.ui.DirPickerActivity;
 import com.hippo.ehviewer.ui.LibraryExportTask;
 import com.hippo.unifile.UniFile;
 import com.hippo.util.ExceptionUtils;
-import com.hippo.yorozuya.IOUtils;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -291,6 +291,7 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
 
         try (OutputStream os = file.openOutputStream()) {
             os.write(DownloadManager.DOWNLOAD_INFO_HEADER.getBytes(StandardCharsets.UTF_8));
+            os.write('\n');
             for (GalleryInfo gi : list) {
                 os.write(gi.toCSV().getBytes(StandardCharsets.UTF_8));
             }
@@ -489,7 +490,7 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
         }
     }
 
-    private static class ImportDownloadTask extends AsyncTask<Void, Integer, Integer> {
+    private static class ImportDownloadTask extends AsyncTask<Void, Integer, ImportTaskResult> {
 
         private final WeakReference<DownloadFragment> mFragment;
         private final Uri mUri;
@@ -515,45 +516,40 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
         }
 
         @Override
-        protected Integer doInBackground(Void... voids) {
+        protected ImportTaskResult doInBackground(Void... voids) {
             DownloadFragment fragment = mFragment.get();
             if (fragment == null || fragment.getActivity() == null || mUri == null) {
-                return 0;
+                return ImportTaskResult.failure("Import screen is no longer available");
             }
 
-            try (InputStream is = fragment.requireActivity().getContentResolver().openInputStream(mUri)) {
+            Activity activity = fragment.requireActivity();
+            try (InputStream is = activity.getContentResolver().openInputStream(mUri)) {
                 if (is == null) {
-                    return 0;
+                    return ImportTaskResult.failure("Unable to open the selected file");
                 }
-                String content = IOUtils.readString(is, StandardCharsets.UTF_8.name());
-                String[] lines = content.split("\n");
-                List<GalleryInfo> galleryInfos = new ArrayList<>();
-                for (String line : lines) {
-                    if (line.startsWith(DownloadManager.DOWNLOAD_INFO_HEADER)) {
-                        continue;
-                    }
-                    GalleryInfo gi = GalleryInfo.fromCSV(line);
-                    if (gi != null) {
-                        galleryInfos.add(gi);
-                    }
-                }
+                DownloadCsvParser.Result parsed = DownloadCsvParser.parse(is);
 
-                DownloadManager downloadManager = EhApplication.getDownloadManager(fragment.requireActivity());
+                DownloadManager downloadManager = EhApplication.getDownloadManager(activity);
                 int importCount = 0;
-                int total = galleryInfos.size();
+                int total = parsed.records.size();
                 publishProgress(0, total);
 
                 for (int i = 0; i < total; i++) {
-                    GalleryInfo gi = galleryInfos.get(i);
+                    GalleryInfo gi = parsed.records.get(i);
                     if (downloadManager.getDownloadInfo(gi.gid) == null) {
                         downloadManager.addDownload(gi, null);
                         importCount++;
                     }
                     publishProgress(i + 1, total);
                 }
-                return importCount;
+                return ImportTaskResult.success(importCount);
+            } catch (DownloadCsvParser.ParseException e) {
+                return ImportTaskResult.failure(e.getMessage());
             } catch (IOException e) {
-                return 0;
+                String detail = e.getMessage();
+                return ImportTaskResult.failure(detail == null || detail.isEmpty()
+                        ? "Unable to read the selected file"
+                        : "Unable to read the selected file: " + detail);
             }
         }
 
@@ -566,7 +562,7 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
         }
 
         @Override
-        protected void onPostExecute(Integer result) {
+        protected void onPostExecute(ImportTaskResult result) {
             DownloadFragment fragment = mFragment.get();
             if (mProgressDialog != null) {
                 // 检查 Fragment 是否仍然附加到 Activity，避免在 Activity 销毁后关闭对话框导致崩溃
@@ -585,11 +581,37 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
             if (fragment == null || fragment.getActivity() == null) {
                 return;
             }
-            if (result > 0) {
-                Toast.makeText(fragment.getActivity(), fragment.getString(R.string.settings_download_import_succeed, result), Toast.LENGTH_LONG).show();
+            if (result.error != null) {
+                Toast.makeText(fragment.getActivity(),
+                        fragment.getString(R.string.settings_download_import_failed_reason,
+                                result.error), Toast.LENGTH_LONG).show();
+            } else if (result.imported > 0) {
+                Toast.makeText(fragment.getActivity(), fragment.getString(
+                        R.string.settings_download_import_succeed, result.imported),
+                        Toast.LENGTH_LONG).show();
             } else {
-                Toast.makeText(fragment.getActivity(), R.string.settings_download_import_failed, Toast.LENGTH_SHORT).show();
+                Toast.makeText(fragment.getActivity(), R.string.settings_download_import_no_items,
+                        Toast.LENGTH_SHORT).show();
             }
+        }
+    }
+
+    private static final class ImportTaskResult {
+        private final int imported;
+        @Nullable
+        private final String error;
+
+        private ImportTaskResult(int imported, @Nullable String error) {
+            this.imported = imported;
+            this.error = error;
+        }
+
+        private static ImportTaskResult success(int imported) {
+            return new ImportTaskResult(imported, null);
+        }
+
+        private static ImportTaskResult failure(String error) {
+            return new ImportTaskResult(0, error);
         }
     }
 
