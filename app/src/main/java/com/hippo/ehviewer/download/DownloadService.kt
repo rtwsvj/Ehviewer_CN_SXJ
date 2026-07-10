@@ -15,9 +15,7 @@
  */
 package com.hippo.ehviewer.download
 
-import android.annotation.SuppressLint
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -45,7 +43,6 @@ import com.hippo.lib.yorozuya.collect.LongList
 import com.hippo.lib.yorozuya.collect.SparseJBArray
 import com.hippo.lib.yorozuya.collect.SparseJLArray
 
-@SuppressLint("UnspecifiedImmutableFlag")
 class DownloadService : Service(), DownloadManager.DownloadListener {
     private var mNotifyManager: NotificationManager? = null
     private var mDownloadManager: DownloadManager? = null
@@ -188,9 +185,7 @@ class DownloadService : Service(), DownloadManager.DownloadListener {
             return
         }
 
-        val stopAllIntent = Intent(this, DownloadService::class.java)
-        stopAllIntent.setAction(ACTION_STOP_ALL)
-        val piStopAll = PendingIntent.getService(this, 0, stopAllIntent, 0)
+        val piStopAll = DownloadNotificationIntentFactory.forService(this, ACTION_STOP_ALL)
 
         mDownloadingBuilder = NotificationCompat.Builder(applicationContext, CHANNEL_ID!!)
             .setSmallIcon(android.R.drawable.stat_sys_download)
@@ -215,9 +210,7 @@ class DownloadService : Service(), DownloadManager.DownloadListener {
             return
         }
 
-        val clearIntent = Intent(this, DownloadService::class.java)
-        clearIntent.setAction(ACTION_CLEAR)
-        val piClear = PendingIntent.getService(this, 0, clearIntent, 0)
+        val piClear = DownloadNotificationIntentFactory.forService(this, ACTION_CLEAR)
 
         val bundle = Bundle()
         bundle.putString(DownloadsScene.KEY_ACTION, DownloadsScene.ACTION_CLEAR_DOWNLOAD_SERVICE)
@@ -225,9 +218,8 @@ class DownloadService : Service(), DownloadManager.DownloadListener {
         activityIntent.setAction(StageActivity.ACTION_START_SCENE)
         activityIntent.putExtra(StageActivity.KEY_SCENE_NAME, DownloadsScene::class.java.name)
         activityIntent.putExtra(StageActivity.KEY_SCENE_ARGS, bundle)
-        val piActivity = PendingIntent.getActivity(
-            this@DownloadService, 0,
-            activityIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val piActivity = DownloadNotificationIntentFactory.forActivity(
+            this@DownloadService, ID_DOWNLOADED, activityIntent
         )
 
         mDownloadedBuilder = NotificationCompat.Builder(applicationContext, CHANNEL_ID!!)
@@ -277,9 +269,8 @@ class DownloadService : Service(), DownloadManager.DownloadListener {
         activityIntent.setAction(StageActivity.ACTION_START_SCENE)
         activityIntent.putExtra(StageActivity.KEY_SCENE_NAME, DownloadsScene::class.java.name)
         activityIntent.putExtra(StageActivity.KEY_SCENE_ARGS, bundle)
-        val piActivity = PendingIntent.getActivity(
-            this@DownloadService, 0,
-            activityIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val piActivity = DownloadNotificationIntentFactory.forActivity(
+            this@DownloadService, ID_DOWNLOADING, activityIntent
         )
 
         mDownloadingBuilder!!.setContentTitle(EhUtils.getSuitableTitle(info))

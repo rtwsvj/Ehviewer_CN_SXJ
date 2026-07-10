@@ -72,9 +72,11 @@
                         android:id="@+id/ipb_member_id"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:importantForAutofill="no"
                         android:imeOptions="actionNext"
-                        android:inputType="text"
+                        android:inputType="numberPassword"
                         android:maxLines="1"
+                        android:saveEnabled="false"
                         android:singleLine="true"
                         tools:ignore="HardcodedText"/>
 
@@ -92,9 +94,11 @@
                         android:id="@+id/ipb_pass_hash"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:importantForAutofill="no"
                         android:imeOptions="actionNext"
-                        android:inputType="text"
+                        android:inputType="textPassword"
                         android:maxLines="1"
+                        android:saveEnabled="false"
                         android:singleLine="true"
                         tools:ignore="HardcodedText"/>
 
@@ -112,9 +116,11 @@
                         android:id="@+id/igneous"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:importantForAutofill="no"
                         android:imeOptions="actionDone"
-                        android:inputType="text"
+                        android:inputType="textPassword"
                         android:maxLines="1"
+                        android:saveEnabled="false"
                         android:singleLine="true"
                         tools:ignore="HardcodedText" />
 
