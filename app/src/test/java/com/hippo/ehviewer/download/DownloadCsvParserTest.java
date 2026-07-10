@@ -8,6 +8,7 @@ package com.hippo.ehviewer.download;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 
 import com.hippo.ehviewer.client.data.GalleryInfo;
@@ -84,17 +85,32 @@ public class DownloadCsvParserTest {
     }
 
     @Test
-    public void jsonLinesRejectsSparseOrZeroPageRecords() throws Exception {
+    public void jsonLinesRejectsSparseOrNegativePageRecords() throws Exception {
         String sparse = DownloadCsvParser.EXPORT_HEADER
                 + "\n{\"gid\":1,\"token\":\"x\"}\n";
-        String zeroPages = DownloadCsvParser.EXPORT_HEADER + "\n"
+        String negativePages = DownloadCsvParser.EXPORT_HEADER + "\n"
                 + DownloadCsvParser.toExportLine(record(6L)).replace("\"pages\":10",
-                        "\"pages\":0") + "\n";
+                        "\"pages\":-1") + "\n";
 
         assertParseFailure(sparse, 64 * 1024, 4096, 10,
                 DownloadCsvParser.Reason.MALFORMED_ROW, 2);
-        assertParseFailure(zeroPages, 64 * 1024, 4096, 10,
+        assertParseFailure(negativePages, 64 * 1024, 4096, 10,
                 DownloadCsvParser.Reason.MALFORMED_ROW, 2);
+    }
+
+    @Test
+    public void persistedUnknownPagesAndMissingThumbStillRoundTrip() throws Exception {
+        GalleryInfo original = record(7L);
+        original.pages = 0;
+        original.thumb = null;
+        String data = DownloadCsvParser.EXPORT_HEADER + "\n"
+                + DownloadCsvParser.toExportLine(original) + "\n";
+
+        DownloadCsvParser.Result result = parse(data);
+
+        assertEquals(1, result.records.size());
+        assertEquals(0, result.records.get(0).pages);
+        assertNull(result.records.get(0).thumb);
     }
 
     @Test

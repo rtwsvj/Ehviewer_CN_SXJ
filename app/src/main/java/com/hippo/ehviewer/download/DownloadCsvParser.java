@@ -213,12 +213,12 @@ public final class DownloadCsvParser {
             Object pages = object.opt("pages");
             Object token = object.opt("token");
             Object title = object.opt("title");
-            Object thumb = object.opt("thumb");
             if (!isPositiveIntegral(gid, Long.MAX_VALUE)
-                    || !isPositiveIntegral(pages, Integer.MAX_VALUE)
+                    || !isNonNegativeIntegral(pages, Integer.MAX_VALUE)
                     || !isNonEmptyString(token)
                     || !isNonEmptyString(title)
-                    || !isNonEmptyString(thumb)) {
+                    || (object.has("thumb") && !object.isNull("thumb")
+                    && !(object.opt("thumb") instanceof String))) {
                 throw new JSONException("Missing or invalid required download fields");
             }
             return GalleryInfo.galleryInfoFromJson(object);
@@ -231,8 +231,19 @@ public final class DownloadCsvParser {
             Number number = (Number) value;
             double asDouble = number.doubleValue();
             long asLong = number.longValue();
-            return Double.isFinite(asDouble) && asDouble == asLong
+            return !Double.isNaN(asDouble) && !Double.isInfinite(asDouble) && asDouble == asLong
                     && asLong > 0L && asLong <= maximum;
+        }
+
+        private static boolean isNonNegativeIntegral(Object value, long maximum) {
+            if (!(value instanceof Number)) {
+                return false;
+            }
+            Number number = (Number) value;
+            double asDouble = number.doubleValue();
+            long asLong = number.longValue();
+            return !Double.isNaN(asDouble) && !Double.isInfinite(asDouble) && asDouble == asLong
+                    && asLong >= 0L && asLong <= maximum;
         }
 
         private static boolean isNonEmptyString(Object value) {
