@@ -79,7 +79,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 public class EhDB {
@@ -769,35 +768,43 @@ public class EhDB {
 
     public static synchronized void insertQuickSearchList(List<QuickSearch> quickSearchList) {
         QuickSearchDao dao = sDaoSession.getQuickSearchDao();
-        for (int i = 0; i < quickSearchList.size(); i++) {
-            QuickSearch search = quickSearchList.get(i);
+        List<QuickSearch> searchesToInsert = new ArrayList<>(quickSearchList.size());
+        for (QuickSearch search : quickSearchList) {
+            if (search == null) {
+                continue;
+            }
             search.id = null;
             search.time = System.currentTimeMillis();
-            search.id = dao.insert(search);
+            searchesToInsert.add(search);
+        }
+        if (!searchesToInsert.isEmpty()) {
+            dao.insertInTx(searchesToInsert);
         }
     }
 
     public static synchronized void takeOverQuickSearchList(List<QuickSearch> quickSearchList) {
         QuickSearchDao dao = sDaoSession.getQuickSearchDao();
         List<QuickSearch> allList = dao.queryBuilder().orderAsc(QuickSearchDao.Properties.Time).list();
-        for (int i = 0; i < quickSearchList.size(); i++) {
-            QuickSearch newSearch = quickSearchList.get(i);
+        Set<String> existingKeywords = new HashSet<>(allList.size() + quickSearchList.size());
+        for (QuickSearch search : allList) {
+            if (search != null) {
+                existingKeywords.add(search.keyword);
+            }
+        }
+
+        List<QuickSearch> searchesToInsert = new ArrayList<>();
+        for (QuickSearch newSearch : quickSearchList) {
             if (newSearch == null) {
                 continue;
             }
-            boolean insert = true;
-            for (int j = 0; j < allList.size(); j++) {
-                QuickSearch exist = allList.get(j);
-                if (exist != null && Objects.equals(exist.keyword, newSearch.keyword)) {
-                    insert = false;
-                    break;
-                }
-            }
-            if (insert) {
+            if (existingKeywords.add(newSearch.keyword)) {
                 newSearch.id = null;
                 newSearch.time = System.currentTimeMillis();
-                newSearch.id = dao.insert(newSearch);
+                searchesToInsert.add(newSearch);
             }
+        }
+        if (!searchesToInsert.isEmpty()) {
+            dao.insertInTx(searchesToInsert);
         }
     }
 
