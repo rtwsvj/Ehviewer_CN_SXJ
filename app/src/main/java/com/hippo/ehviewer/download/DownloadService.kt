@@ -227,7 +227,7 @@ class DownloadService : Service(), DownloadManager.DownloadListener {
         activityIntent.putExtra(StageActivity.KEY_SCENE_ARGS, bundle)
         val piActivity = PendingIntent.getActivity(
             this@DownloadService, 0,
-            activityIntent, PendingIntent.FLAG_UPDATE_CURRENT
+            activityIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         mDownloadedBuilder = NotificationCompat.Builder(applicationContext, CHANNEL_ID!!)
@@ -279,7 +279,7 @@ class DownloadService : Service(), DownloadManager.DownloadListener {
         activityIntent.putExtra(StageActivity.KEY_SCENE_ARGS, bundle)
         val piActivity = PendingIntent.getActivity(
             this@DownloadService, 0,
-            activityIntent, PendingIntent.FLAG_UPDATE_CURRENT
+            activityIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         mDownloadingBuilder!!.setContentTitle(EhUtils.getSuitableTitle(info))

@@ -17,8 +17,6 @@
 package com.hippo.ehviewer.ui.scene;
 
 import android.content.Context;
-import android.hardware.Sensor;
-import android.hardware.SensorManager;
 import android.hardware.fingerprint.FingerprintManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -34,7 +32,6 @@ import com.hippo.ehviewer.R;
 import com.hippo.ehviewer.Settings;
 import com.hippo.ehviewer.ui.MainActivity;
 import com.hippo.ehviewer.ui.SetSecurityActivity;
-import com.hippo.hardware.ShakeDetector;
 import com.hippo.widget.lockpattern.LockPatternUtils;
 import com.hippo.widget.lockpattern.LockPatternView;
 import com.hippo.lib.yorozuya.AssertUtils;
@@ -42,8 +39,7 @@ import com.hippo.lib.yorozuya.ObjectUtils;
 import com.hippo.lib.yorozuya.ViewUtils;
 import java.util.List;
 
-public class SecurityScene extends SolidScene implements
-        LockPatternView.OnPatternListener, ShakeDetector.OnShakeListener {
+public class SecurityScene extends SolidScene implements LockPatternView.OnPatternListener {
 
     private static final int MAX_RETRY_TIMES = 5;
     private static final long ERROR_TIMEOUT_MILLIS = 1200;
@@ -55,9 +51,6 @@ public class SecurityScene extends SolidScene implements
     private LockPatternView mPatternView;
     private ImageView mFingerprintIcon;
 
-    private SensorManager mSensorManager;
-    private Sensor mAccelerometer;
-    private ShakeDetector mShakeDetector;
     @Nullable
     private FingerprintManager mFingerprintManager;
 
@@ -76,14 +69,6 @@ public class SecurityScene extends SolidScene implements
 
         Context context = getEHContext();
         AssertUtils.assertNotNull(context);
-        mSensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
-        if (null != mSensorManager) {
-            mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-            if (null != mAccelerometer) {
-                mShakeDetector = new ShakeDetector();
-                mShakeDetector.setOnShakeListener(this);
-            }
-        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             mFingerprintManager = context.getSystemService(FingerprintManager.class);
         }
@@ -96,21 +81,8 @@ public class SecurityScene extends SolidScene implements
     }
 
     @Override
-    public void onDestroy() {
-        super.onDestroy();
-
-        mSensorManager = null;
-        mAccelerometer = null;
-        mShakeDetector = null;
-    }
-
-    @Override
     public void onResume() {
         super.onResume();
-
-        if (null != mShakeDetector) {
-            mSensorManager.registerListener(mShakeDetector, mAccelerometer, SensorManager.SENSOR_DELAY_UI);
-        }
 
         if (isFingerprintAuthAvailable()) {
             mFingerprintCancellationSignal = new CancellationSignal();
@@ -150,10 +122,6 @@ public class SecurityScene extends SolidScene implements
     @Override
     public void onPause() {
         super.onPause();
-
-        if (null != mShakeDetector) {
-            mSensorManager.unregisterListener(mShakeDetector);
-        }
         if (isFingerprintAuthAvailable() && mFingerprintCancellationSignal != null) {
             mFingerprintCancellationSignal.cancel();
             mFingerprintCancellationSignal = null;
@@ -218,21 +186,6 @@ public class SecurityScene extends SolidScene implements
             mPatternView.setDisplayMode(LockPatternView.DisplayMode.Wrong);
             mRetryTimes--;
             if (mRetryTimes <= 0) {
-                finish();
-            }
-        }
-    }
-
-    @Override
-    public void onShake(int count) {
-        if (count == 10) {
-            MainActivity activity = getActivity2();
-            if (null == activity) {
-                return;
-            }
-            Settings.putSecurity("");
-            if (getEHContext() != null && isAdded()) {
-                startSceneForCheckStep(CHECK_STEP_SECURITY, getArguments());
                 finish();
             }
         }

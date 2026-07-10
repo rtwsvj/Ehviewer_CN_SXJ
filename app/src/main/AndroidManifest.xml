@@ -75,7 +75,7 @@
         <activity
             android:name=".ui.MainActivity"
             android:configChanges="screenSize|uiMode"
-            android:exported="true"
+            android:exported="false"
             android:launchMode="singleTask"
             android:theme="@style/AppTheme.Main"
             android:windowSoftInputMode="stateHidden">
@@ -88,13 +88,17 @@
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
 
+        </activity>
+        <activity
+            android:name=".ui.ExternalIntentActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoDisplay">
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <data android:scheme="http" />
                 <data android:scheme="https" />
                 <data android:host="exhentai.org" />
                 <data android:host="e-hentai.org" />

@@ -109,6 +109,10 @@ public abstract class StageActivity extends EhActivity {
             Log.e(TAG, "Can't find class " + clazzStr, e);
             return false;
         }
+        if (!isSceneClassAllowed(clazz)) {
+            Log.w(TAG, "Reject non-scene class from intent: " + clazzStr);
+            return false;
+        }
 
         Bundle args = intent.getBundleExtra(KEY_SCENE_ARGS);
 
@@ -119,6 +123,10 @@ public abstract class StageActivity extends EhActivity {
 
         startScene(announcer);
         return true;
+    }
+
+    static boolean isSceneClassAllowed(@Nullable Class<?> clazz) {
+        return clazz != null && SceneFragment.class.isAssignableFrom(clazz);
     }
 
     /**
