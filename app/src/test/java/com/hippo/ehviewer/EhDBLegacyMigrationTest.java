@@ -67,6 +67,27 @@ public class EhDBLegacyMigrationTest {
     }
 
     @Test
+    public void replayAfterCommittedTransactionDoesNotDuplicateRows() {
+        createLegacyDatabase(true);
+        EhDB.initialize(app);
+        EhDB.mergeOldDB(app);
+        assertMigratedRows();
+
+        PreferenceManager.getDefaultSharedPreferences(app).edit()
+                .putBoolean("legacy_db_migration_pending", true)
+                .commit();
+        EhDB.closeForTesting();
+        Settings.initialize(app);
+        EhDB.initialize(app);
+
+        assertTrue(EhDB.needMerge());
+        EhDB.mergeOldDB(app);
+
+        assertFalse(EhDB.needMerge());
+        assertMigratedRows();
+    }
+
+    @Test
     public void malformedLegacyDatabaseLeavesTargetEmptyAndRetryable() {
         createLegacyDatabase(false);
         EhDB.initialize(app);

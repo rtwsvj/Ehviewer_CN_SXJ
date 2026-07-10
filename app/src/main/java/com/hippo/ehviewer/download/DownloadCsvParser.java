@@ -18,9 +18,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Streaming, fail-closed parser for the legacy download-list CSV format. */
+import org.json.JSONException;
+import org.json.JSONObject;
+
+/** Streaming, fail-closed parser for versioned JSON Lines and legacy download-list CSV. */
 public final class DownloadCsvParser {
 
+    public static final String EXPORT_HEADER = "ehviewer-download-jsonl-v1";
     public static final long MAX_TOTAL_BYTES = 16L * 1024L * 1024L;
     public static final int MAX_LINE_CHARS = 64 * 1024;
     public static final int MAX_RECORDS = 10_000;
@@ -28,6 +32,11 @@ public final class DownloadCsvParser {
     private static final int BUFFER_CHARS = 4096;
 
     private DownloadCsvParser() {}
+
+    @NonNull
+    public static String toExportLine(@NonNull GalleryInfo info) {
+        return info.toJson().toString();
+    }
 
     @NonNull
     public static Result parse(@NonNull InputStream input) throws IOException {
@@ -109,6 +118,7 @@ public final class DownloadCsvParser {
         private final List<GalleryInfo> records = new ArrayList<>();
         private int lineNumber;
         private boolean firstContent = true;
+        private Format format = Format.UNKNOWN;
 
         private ParserState(int maxLineChars, int maxRecords) {
             this.maxLineChars = maxLineChars;
@@ -154,11 +164,23 @@ public final class DownloadCsvParser {
 
             if (firstContent) {
                 firstContent = false;
+                if (EXPORT_HEADER.equals(value)) {
+                    format = Format.JSONL;
+                    return;
+                }
                 if (value.startsWith(DownloadManager.DOWNLOAD_INFO_HEADER)) {
+                    format = Format.LEGACY_CSV;
                     value = value.substring(DownloadManager.DOWNLOAD_INFO_HEADER.length());
                     if (value.isEmpty()) {
                         return;
                     }
+                } else {
+                    if (value.charAt(0) == '{') {
+                        // JSON Lines is intentionally versioned. Treating arbitrary JSON as an
+                        // export would let a sparse object silently create a corrupt download.
+                        throw malformedRow(null);
+                    }
+                    format = Format.LEGACY_CSV;
                 }
             }
 
@@ -169,8 +191,12 @@ public final class DownloadCsvParser {
 
             GalleryInfo info;
             try {
-                info = GalleryInfo.fromCSV(value);
-            } catch (RuntimeException malformed) {
+                if (format == Format.JSONL) {
+                    info = parseJsonRecord(value);
+                } else {
+                    info = GalleryInfo.fromCSV(value);
+                }
+            } catch (JSONException | RuntimeException malformed) {
                 throw malformedRow(malformed);
             }
             if (info == null || info.gid <= 0 || info.token == null || info.token.isEmpty()
@@ -180,12 +206,51 @@ public final class DownloadCsvParser {
             records.add(info);
         }
 
+        @NonNull
+        private GalleryInfo parseJsonRecord(@NonNull String value) throws JSONException {
+            JSONObject object = new JSONObject(value);
+            Object gid = object.opt("gid");
+            Object pages = object.opt("pages");
+            Object token = object.opt("token");
+            Object title = object.opt("title");
+            Object thumb = object.opt("thumb");
+            if (!isPositiveIntegral(gid, Long.MAX_VALUE)
+                    || !isPositiveIntegral(pages, Integer.MAX_VALUE)
+                    || !isNonEmptyString(token)
+                    || !isNonEmptyString(title)
+                    || !isNonEmptyString(thumb)) {
+                throw new JSONException("Missing or invalid required download fields");
+            }
+            return GalleryInfo.galleryInfoFromJson(object);
+        }
+
+        private static boolean isPositiveIntegral(Object value, long maximum) {
+            if (!(value instanceof Number)) {
+                return false;
+            }
+            Number number = (Number) value;
+            double asDouble = number.doubleValue();
+            long asLong = number.longValue();
+            return Double.isFinite(asDouble) && asDouble == asLong
+                    && asLong > 0L && asLong <= maximum;
+        }
+
+        private static boolean isNonEmptyString(Object value) {
+            return value instanceof String && !((String) value).trim().isEmpty();
+        }
+
         private ParseException malformedRow(Throwable cause) {
             String message = "Malformed CSV record at line " + lineNumber;
             return cause == null
                     ? new ParseException(Reason.MALFORMED_ROW, lineNumber, message)
                     : new ParseException(Reason.MALFORMED_ROW, lineNumber, message, cause);
         }
+    }
+
+    private enum Format {
+        UNKNOWN,
+        JSONL,
+        LEGACY_CSV
     }
 
     private static final class LimitedInputStream extends InputStream {

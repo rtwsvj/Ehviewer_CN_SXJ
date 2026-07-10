@@ -360,7 +360,11 @@ public class EhDB {
                         search.startsWith("uploader:")) {
                     search = search.substring("uploader:".length());
                 }
-                quickSearch.setTime((long) cursor.getInt(0));
+                long legacyId = cursor.getLong(0);
+                // Keep a stable primary key so a crash between DB commit and the external
+                // completion marker can safely replay the migration without duplicates.
+                quickSearch.setId(legacyId);
+                quickSearch.setTime(legacyId);
                 quickSearch.setName(cursor.getString(1));
                 quickSearch.setMode(mode);
                 quickSearch.setCategory(cursor.getInt(3));

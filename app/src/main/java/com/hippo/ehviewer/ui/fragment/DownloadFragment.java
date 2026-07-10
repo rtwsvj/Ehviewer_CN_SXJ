@@ -281,7 +281,7 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
         }
 
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss", Locale.US);
-        String fileName = "ehviewer-download-" + sdf.format(new Date()) + ".csv";
+        String fileName = "ehviewer-download-" + sdf.format(new Date()) + ".jsonl";
 
         UniFile file = dir.createFile(fileName);
         if (file == null) {
@@ -290,10 +290,11 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
         }
 
         try (OutputStream os = file.openOutputStream()) {
-            os.write(DownloadManager.DOWNLOAD_INFO_HEADER.getBytes(StandardCharsets.UTF_8));
+            os.write(DownloadCsvParser.EXPORT_HEADER.getBytes(StandardCharsets.UTF_8));
             os.write('\n');
             for (GalleryInfo gi : list) {
-                os.write(gi.toCSV().getBytes(StandardCharsets.UTF_8));
+                os.write(DownloadCsvParser.toExportLine(gi).getBytes(StandardCharsets.UTF_8));
+                os.write('\n');
             }
             Toast.makeText(getActivity(), getString(R.string.settings_download_export_succeed, file.getUri().toString()), Toast.LENGTH_SHORT).show();
         } catch (IOException e) {

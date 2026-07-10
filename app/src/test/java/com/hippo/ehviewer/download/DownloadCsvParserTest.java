@@ -7,6 +7,7 @@
 package com.hippo.ehviewer.download;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.fail;
 
 import com.hippo.ehviewer.client.data.GalleryInfo;
@@ -45,6 +46,65 @@ public class DownloadCsvParserTest {
 
         assertEquals(1, result.records.size());
         assertEquals(3L, result.records.get(0).gid);
+    }
+
+    @Test
+    public void versionedJsonLinesRoundTripsCommasNewlinesAndMultipleTags() throws Exception {
+        GalleryInfo original = record(4L);
+        original.title = "Title, with comma\nand newline";
+        original.titleJpn = "日本語,題名";
+        original.simpleTags = new String[] {"artist:first", "female:second"};
+
+        String data = DownloadCsvParser.EXPORT_HEADER + "\n"
+                + DownloadCsvParser.toExportLine(original) + "\n";
+        DownloadCsvParser.Result result = parse(data);
+
+        assertEquals(1, result.records.size());
+        GalleryInfo parsed = result.records.get(0);
+        assertEquals(original.gid, parsed.gid);
+        assertEquals(original.title, parsed.title);
+        assertEquals(original.titleJpn, parsed.titleJpn);
+        assertArrayEquals(original.simpleTags, parsed.simpleTags);
+    }
+
+    @Test
+    public void malformedJsonLineFailsClosedWithLineNumber() throws Exception {
+        String data = DownloadCsvParser.EXPORT_HEADER + "\n{not-json}\n";
+
+        assertParseFailure(data, 64 * 1024, 4096, 10,
+                DownloadCsvParser.Reason.MALFORMED_ROW, 2);
+    }
+
+    @Test
+    public void jsonLinesRequiresTheVersionHeader() throws Exception {
+        String data = DownloadCsvParser.toExportLine(record(5L)) + "\n";
+
+        assertParseFailure(data, 64 * 1024, 4096, 10,
+                DownloadCsvParser.Reason.MALFORMED_ROW, 1);
+    }
+
+    @Test
+    public void jsonLinesRejectsSparseOrZeroPageRecords() throws Exception {
+        String sparse = DownloadCsvParser.EXPORT_HEADER
+                + "\n{\"gid\":1,\"token\":\"x\"}\n";
+        String zeroPages = DownloadCsvParser.EXPORT_HEADER + "\n"
+                + DownloadCsvParser.toExportLine(record(6L)).replace("\"pages\":10",
+                        "\"pages\":0") + "\n";
+
+        assertParseFailure(sparse, 64 * 1024, 4096, 10,
+                DownloadCsvParser.Reason.MALFORMED_ROW, 2);
+        assertParseFailure(zeroPages, 64 * 1024, 4096, 10,
+                DownloadCsvParser.Reason.MALFORMED_ROW, 2);
+    }
+
+    @Test
+    public void jsonLinesRejectsWrongRequiredFieldTypes() throws Exception {
+        String data = DownloadCsvParser.EXPORT_HEADER
+                + "\n{\"gid\":\"7\",\"token\":\"token\",\"title\":\"title\","
+                + "\"thumb\":\"https://example.invalid/7.jpg\",\"pages\":1}\n";
+
+        assertParseFailure(data, 64 * 1024, 4096, 10,
+                DownloadCsvParser.Reason.MALFORMED_ROW, 2);
     }
 
     @Test
