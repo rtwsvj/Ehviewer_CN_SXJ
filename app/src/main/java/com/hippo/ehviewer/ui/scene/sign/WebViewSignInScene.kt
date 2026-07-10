@@ -9,7 +9,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.webkit.CookieManager
+import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.acsbendi.requestinspectorwebview.RequestInspectorOptions
@@ -22,6 +24,7 @@ import com.hippo.ehviewer.client.EhCookieStore
 import com.hippo.ehviewer.client.EhRequestBuilder
 import com.hippo.ehviewer.client.EhUrl
 import com.hippo.ehviewer.client.EhUtils
+import com.hippo.ehviewer.client.TrustedWebRequestPolicy
 import com.hippo.ehviewer.client.WebViewCookieBridge
 import com.hippo.ehviewer.R
 import com.hippo.ehviewer.ui.scene.SolidScene
@@ -33,6 +36,7 @@ import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import java.io.ByteArrayInputStream
 import java.io.IOException
 import kotlin.collections.iterator
 
@@ -61,7 +65,10 @@ class WebViewSignInScene : SolidScene() {
         val context = ehContext
         AssertUtils.assertNotNull(context)
         if (okHttpClient == null) {
-            okHttpClient = EhApplication.getOkHttpClient(context!!.applicationContext)
+            okHttpClient = TrustedWebRequestPolicy.hardenClient(
+                EhApplication.getOkHttpClient(context!!.applicationContext),
+                EhUrl.DOMAIN_FORUMS
+            )
         }
         EhUtils.signOut(context!!)
 
@@ -70,6 +77,11 @@ class WebViewSignInScene : SolidScene() {
             mWebView = WebView(context)
             val webSettings = mWebView!!.settings
             webSettings.javaScriptEnabled = true
+            webSettings.allowFileAccess = false
+            webSettings.allowContentAccess = false
+            webSettings.allowFileAccessFromFileURLs = false
+            webSettings.allowUniversalAccessFromFileURLs = false
+            webSettings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             mWebView!!.webViewClient = LoginWebViewClient()
             WebViewCookieBridge.clear {
                 mWebView?.loadUrl(EhUrl.URL_SIGN_IN)
@@ -98,6 +110,21 @@ class WebViewSignInScene : SolidScene() {
             mWebView = null
         }
         WebViewCookieBridge.clear()
+    }
+
+    private fun isTrustedSignInUrl(url: String?): Boolean {
+        return TrustedWebRequestPolicy.isAllowedHttpsUrl(url, EhUrl.DOMAIN_FORUMS)
+    }
+
+    private fun blockedResponse(statusCode: Int = 403, reason: String = "Blocked"): WebResourceResponse {
+        return WebResourceResponse(
+            "text/plain",
+            "UTF-8",
+            statusCode,
+            reason,
+            mapOf("Cache-Control" to "no-store"),
+            ByteArrayInputStream(ByteArray(0))
+        )
     }
 
     private inner class LoginWebViewClientSNI : RequestInspectorWebViewClient {
@@ -133,6 +160,9 @@ class WebViewSignInScene : SolidScene() {
             view: WebView,
             request: WebViewRequest
         ): WebResourceResponse? {
+            if (!isTrustedSignInUrl(request.url)) {
+                return blockedResponse()
+            }
             val okRequest: Request
             val builder = EhRequestBuilder(
                 request.headers,
@@ -158,8 +188,17 @@ class WebViewSignInScene : SolidScene() {
                 return convertOkHttpResponse(response)
             } catch (e: IOException) {
                 Analytics.recordException(e)
+                return blockedResponse(502, "Upstream request failed")
             }
-            return null
+        }
+
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            return !isTrustedSignInUrl(request.url.toString())
+        }
+
+        @Suppress("DEPRECATION")
+        override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
+            return !isTrustedSignInUrl(url)
         }
 
         fun buildForm(request: WebViewRequest): FormBody {
@@ -175,6 +214,7 @@ class WebViewSignInScene : SolidScene() {
 
         override fun onPageFinished(view: WebView, url: String) {
             val context = ehContext ?: return
+            if (!isTrustedSignInUrl(url)) return
             val httpUrl = HttpUrl.parse(url) ?: return
             val manager = CookieManager.getInstance()
             val cookieString = manager.getCookie(EhUrl.HOST_E)
@@ -336,8 +376,29 @@ class WebViewSignInScene : SolidScene() {
                 .addCookie(EhCookieStore.newCookie(cookie, domain, true, true, true))
         }
 
+        override fun shouldInterceptRequest(
+            view: WebView,
+            request: WebResourceRequest
+        ): WebResourceResponse? {
+            return if (isTrustedSignInUrl(request.url.toString())) {
+                super.shouldInterceptRequest(view, request)
+            } else {
+                blockedResponse()
+            }
+        }
+
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            return !isTrustedSignInUrl(request.url.toString())
+        }
+
+        @Suppress("DEPRECATION")
+        override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
+            return !isTrustedSignInUrl(url)
+        }
+
         override fun onPageFinished(view: WebView, url: String) {
             val context: Context =  ehContext ?: return
+            if (!isTrustedSignInUrl(url)) return
             val httpUrl = HttpUrl.parse(url) ?: return
 
             val cookieString = CookieManager.getInstance().getCookie(EhUrl.HOST_E)

@@ -49,15 +49,19 @@ import com.hippo.ehviewer.R;
 import com.hippo.ehviewer.Settings;
 import com.hippo.ehviewer.client.EhRequestBuilder;
 import com.hippo.ehviewer.client.EhUrl;
+import com.hippo.ehviewer.client.TrustedWebRequestPolicy;
 import com.hippo.ehviewer.client.WebViewCookieBridge;
 import com.hippo.ehviewer.widget.DialogWebChromeClient;
 import com.hippo.util.AppHelper;
 import com.hippo.widget.ProgressView;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 import okhttp3.FormBody;
+import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -70,6 +74,7 @@ public class UConfigActivity extends ToolbarActivity {
     private WebView webView;
     private ProgressView progress;
     private String url;
+    private String trustedHost;
     private boolean loaded;
 
     private OkHttpClient okHttpClient;
@@ -78,12 +83,17 @@ public class UConfigActivity extends ToolbarActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if (okHttpClient == null) {
-            okHttpClient = EhApplication.getOkHttpClient(getApplicationContext());
-        }
-
         try {
             url = EhUrl.getUConfigUrl();
+            HttpUrl parsedUrl = HttpUrl.parse(url);
+            if (parsedUrl == null) {
+                throw new IllegalArgumentException("Invalid uconfig URL");
+            }
+            trustedHost = parsedUrl.host();
+            if (okHttpClient == null) {
+                okHttpClient = TrustedWebRequestPolicy.hardenClient(
+                        EhApplication.getOkHttpClient(getApplicationContext()), trustedHost);
+            }
 
             setContentView(R.layout.activity_u_config);
             setNavigationIcon(R.drawable.v_arrow_left_dark_x24);
@@ -96,6 +106,11 @@ public class UConfigActivity extends ToolbarActivity {
             settings.setSupportZoom(true); //支持缩放，默认为true。是下面那个的前提。
             settings.setBuiltInZoomControls(true); //设置内置的缩放控件。若为false，则该WebView不可缩放
             settings.setDisplayZoomControls(false); //隐藏原生的缩放控件
+            settings.setAllowFileAccess(false);
+            settings.setAllowContentAccess(false);
+            settings.setAllowFileAccessFromFileURLs(false);
+            settings.setAllowUniversalAccessFromFileURLs(false);
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
             webView.setWebViewClient(shouldUseRequestInspector()
                     ? new UConfigRequestInspectorWebViewClient(webView)
@@ -122,6 +137,16 @@ public class UConfigActivity extends ToolbarActivity {
 
     private boolean shouldUseRequestInspector() {
         return Settings.getDF() && AppHelper.checkVPN(this);
+    }
+
+    private boolean isTrustedUConfigUrl(String candidate) {
+        return TrustedWebRequestPolicy.isAllowedHttpsUrl(candidate, trustedHost);
+    }
+
+    private WebResourceResponse blockedResponse(int statusCode, String reason) {
+        return new WebResourceResponse("text/plain", "UTF-8", statusCode, reason,
+                Collections.singletonMap("Cache-Control", "no-store"),
+                new ByteArrayInputStream(new byte[0]));
     }
 
     private void apply() {
@@ -174,6 +199,16 @@ public class UConfigActivity extends ToolbarActivity {
 
     private class UConfigWebViewClient extends WebViewClient {
 
+        @Nullable
+        @Override
+        public WebResourceResponse shouldInterceptRequest(WebView view,
+                WebResourceRequest request) {
+            if (!isTrustedUConfigUrl(request.getUrl().toString())) {
+                return blockedResponse(403, "Blocked");
+            }
+            return super.shouldInterceptRequest(view, request);
+        }
+
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
             return true;
@@ -212,6 +247,9 @@ public class UConfigActivity extends ToolbarActivity {
         @Nullable
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, WebViewRequest request) {
+            if (!isTrustedUConfigUrl(request.getUrl())) {
+                return blockedResponse(403, "Blocked");
+            }
             Request okRequest;
             EhRequestBuilder builder = new EhRequestBuilder(request.getHeaders(),
                     request.getUrl());
@@ -256,8 +294,8 @@ public class UConfigActivity extends ToolbarActivity {
                 return new WebResourceResponse(mimeType, encoding, body.byteStream());
             } catch (IOException e) {
                 Analytics.recordException(e);
+                return blockedResponse(502, "Upstream request failed");
             }
-            return null;
         }
 
         public FormBody buildForm(WebViewRequest request) {

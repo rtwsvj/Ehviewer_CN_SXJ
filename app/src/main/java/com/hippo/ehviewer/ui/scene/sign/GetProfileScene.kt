@@ -6,7 +6,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.acsbendi.requestinspectorwebview.RequestInspectorOptions
@@ -19,6 +21,7 @@ import com.hippo.ehviewer.R
 import com.hippo.ehviewer.Settings
 import com.hippo.ehviewer.client.EhRequestBuilder
 import com.hippo.ehviewer.client.EhUrl
+import com.hippo.ehviewer.client.TrustedWebRequestPolicy
 import com.hippo.ehviewer.client.WebViewCookieBridge
 import com.hippo.ehviewer.client.exception.ParseException
 import com.hippo.ehviewer.client.parser.ProfileParser
@@ -31,13 +34,13 @@ import com.hippo.util.AppHelper
 import android.util.Log
 import androidx.appcompat.app.AlertDialog
 import okhttp3.FormBody
-import okhttp3.HttpUrl
 import okhttp3.MediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.Response
 import org.json.JSONException
+import java.io.ByteArrayInputStream
 import java.io.IOException
 
 class GetProfileScene : SolidScene() {
@@ -62,13 +65,21 @@ class GetProfileScene : SolidScene() {
         val context = ehContext
         AssertUtils.assertNotNull(context)
         if (okHttpClient == null) {
-            okHttpClient = EhApplication.getOkHttpClient(context!!.applicationContext)
+            okHttpClient = TrustedWebRequestPolicy.hardenClient(
+                EhApplication.getOkHttpClient(context!!.applicationContext),
+                EhUrl.DOMAIN_FORUMS
+            )
         }
 
         return try {
             mWebView = WebView(context!!)
             val webSettings = mWebView!!.settings
             webSettings.javaScriptEnabled = true
+            webSettings.allowFileAccess = false
+            webSettings.allowContentAccess = false
+            webSettings.allowFileAccessFromFileURLs = false
+            webSettings.allowUniversalAccessFromFileURLs = false
+            webSettings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
 
             if (Settings.getDF()&& AppHelper.checkVPN(context)){
                 mWebView!!.webViewClient = ProfileWebViewClientSNI(mWebView!!)
@@ -129,13 +140,25 @@ class GetProfileScene : SolidScene() {
                 bundle.putString(AVATAR, result.avatar)
                 setResult(REQUEST_CODE_PROFILE,bundle)
                 finish()
-                print(result)
-                println(json)
-                // 处理内容...
             } catch (e: JSONException) {
                 e.printStackTrace()
             }catch (_: ParseException){}
         }
+    }
+
+    private fun blockedResponse(statusCode: Int = 403, reason: String = "Blocked"): WebResourceResponse {
+        return WebResourceResponse(
+            "text/plain",
+            "UTF-8",
+            statusCode,
+            reason,
+            mapOf("Cache-Control" to "no-store"),
+            ByteArrayInputStream(ByteArray(0))
+        )
+    }
+
+    private fun isTrustedProfileUrl(url: String?): Boolean {
+        return TrustedWebRequestPolicy.isAllowedHttpsUrl(url, EhUrl.DOMAIN_FORUMS)
     }
 
     private inner class ProfileWebViewClientSNI : RequestInspectorWebViewClient {
@@ -147,10 +170,9 @@ class GetProfileScene : SolidScene() {
             view: WebView,
             request: WebViewRequest,
         ): WebResourceResponse? {
-            // 方案五：URL Scheme 过滤 - 只处理 HTTP/HTTPS 请求
             val url = request.url
-            if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                return null // 让 WebView 处理 file://, data:// 等
+            if (!isTrustedProfileUrl(url)) {
+                return blockedResponse()
             }
 
             val okRequest: Request
@@ -205,10 +227,10 @@ class GetProfileScene : SolidScene() {
                 val statusCode = response.code()
                 if (statusCode in 300..399) {
                     val redirectUrl = response.header("Location")
-                    if (redirectUrl != null) {
-                        // 让 WebView 处理重定向
+                    if (redirectUrl != null && !TrustedWebRequestPolicy.isAllowedRedirect(
+                            url, redirectUrl, EhUrl.DOMAIN_FORUMS)) {
                         response.close()
-                        return null
+                        return blockedResponse()
                     }
                 }
                 
@@ -223,20 +245,27 @@ class GetProfileScene : SolidScene() {
                 return convertOkHttpResponse(response)
             } catch (e: IOException) {
                 Analytics.recordException(e)
-                // 记录更详细的错误信息
                 Log.e(TAG, "OkHttp request failed for $url", e)
-                // 根据错误类型决定是否回退
-                return null // 让 WebView 使用默认网络栈
+                return blockedResponse(502, "Upstream request failed")
             } catch (e: Exception) {
                 Analytics.recordException(e)
                 Log.e(TAG, "Unexpected error for $url", e)
-                return null
+                return blockedResponse(502, "Upstream request failed")
             }
+        }
+
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            return !isTrustedProfileUrl(request.url.toString())
+        }
+
+        @Suppress("DEPRECATION")
+        override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
+            return !isTrustedProfileUrl(url)
         }
 
         override fun onPageFinished(view: WebView, url: String) {
             ehContext ?: return
-            HttpUrl.parse(url) ?: return
+            if (!isTrustedProfileUrl(url)) return
             readPageContent()
 //            var getId = false
 //            var getHash = false
@@ -530,8 +559,30 @@ class GetProfileScene : SolidScene() {
 
     private inner class ProfileWebViewClient : WebViewClient() {
 
+        override fun shouldInterceptRequest(
+            view: WebView,
+            request: WebResourceRequest
+        ): WebResourceResponse? {
+            return if (isTrustedProfileUrl(request.url.toString())) {
+                super.shouldInterceptRequest(view, request)
+            } else {
+                blockedResponse()
+            }
+        }
+
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            return !isTrustedProfileUrl(request.url.toString())
+        }
+
+        @Suppress("DEPRECATION")
+        override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
+            return !isTrustedProfileUrl(url)
+        }
+
         override fun onPageFinished(view: WebView, url: String) {
-            readPageContent()
+            if (isTrustedProfileUrl(url)) {
+                readPageContent()
+            }
         }
 
     }
