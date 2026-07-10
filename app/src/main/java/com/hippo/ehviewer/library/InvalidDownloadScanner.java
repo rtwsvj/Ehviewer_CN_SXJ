@@ -68,7 +68,19 @@ public final class InvalidDownloadScanner {
             return;
         }
 
-        UniFile infoFile = dir.findFile(DownloadManager.DOWNLOAD_INFO_FILENAME);
+        UniFile infoFile = null;
+        int actualImages = 0;
+        for (UniFile file : files) {
+            String name = file.getName();
+            if (!file.isFile() || name == null) {
+                continue;
+            }
+            if (DownloadManager.DOWNLOAD_INFO_FILENAME.equals(name)) {
+                infoFile = file;
+            } else if (isSupportedImage(name)) {
+                actualImages++;
+            }
+        }
         if (infoFile == null || !infoFile.isFile()) {
             issues.add(new Issue(directoryName, "Missing .ehviewer file"));
             return;
@@ -87,13 +99,6 @@ public final class InvalidDownloadScanner {
             return;
         }
 
-        int actualImages = 0;
-        for (UniFile file : files) {
-            String name = file.getName();
-            if (file.isFile() && name != null && isSupportedImage(name)) {
-                actualImages++;
-            }
-        }
         if (actualImages != expectedPages) {
             issues.add(new Issue(directoryName,
                     "Inconsistent image count, expected: " + expectedPages
