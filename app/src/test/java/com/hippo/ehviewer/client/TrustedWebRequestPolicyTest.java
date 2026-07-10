@@ -47,4 +47,18 @@ public class TrustedWebRequestPolicyTest {
         assertFalse(TrustedWebRequestPolicy.isAllowedRedirect(
                 base, "https://example.org/", EhUrl.DOMAIN_E));
     }
+
+    @Test
+    public void authenticatedMyTagsViewCannotLeaveSelectedSite() {
+        assertTrue(TrustedWebRequestPolicy.isAllowedHttpsUrl(
+                "https://e-hentai.org/mytags", EhUrl.DOMAIN_E));
+        assertTrue(TrustedWebRequestPolicy.isAllowedHttpsUrl(
+                "https://e-hentai.org/css/eh.css", EhUrl.DOMAIN_E));
+        assertFalse(TrustedWebRequestPolicy.isAllowedHttpsUrl(
+                "https://exhentai.org/mytags", EhUrl.DOMAIN_E));
+        assertFalse(TrustedWebRequestPolicy.isAllowedHttpsUrl(
+                "data:text/html,owned", EhUrl.DOMAIN_E));
+        assertFalse(TrustedWebRequestPolicy.isAllowedHttpsUrl(
+                "file:///sdcard/secret", EhUrl.DOMAIN_E));
+    }
 }

@@ -22,6 +22,9 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
@@ -30,9 +33,16 @@ import androidx.appcompat.app.AlertDialog;
 
 import com.hippo.ehviewer.R;
 import com.hippo.ehviewer.client.EhUrl;
+import com.hippo.ehviewer.client.TrustedWebRequestPolicy;
+import com.hippo.ehviewer.client.TrustedWebViewSettings;
 import com.hippo.ehviewer.client.WebViewCookieBridge;
 import com.hippo.ehviewer.widget.DialogWebChromeClient;
 import com.hippo.widget.ProgressView;
+
+import java.io.ByteArrayInputStream;
+import java.util.Collections;
+
+import okhttp3.HttpUrl;
 
 public class MyTagsActivity extends ToolbarActivity {
 
@@ -41,6 +51,7 @@ public class MyTagsActivity extends ToolbarActivity {
     private WebView webView;
     private ProgressView progress;
     private String url;
+    private String trustedHost;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -49,11 +60,20 @@ public class MyTagsActivity extends ToolbarActivity {
 
         try {
             url = EhUrl.getMyTagsUrl();
+            HttpUrl parsedUrl = HttpUrl.parse(url);
+            if (parsedUrl == null || !TrustedWebRequestPolicy.isAllowedHttpsUrl(
+                    url, EhUrl.DOMAIN_E, EhUrl.DOMAIN_EX)) {
+                throw new IllegalArgumentException("Invalid my-tags URL");
+            }
+            trustedHost = parsedUrl.host();
 
             setContentView(R.layout.activity_my_tags);
             setNavigationIcon(R.drawable.v_arrow_left_dark_x24);
             webView = findViewById(R.id.webview);
-            webView.getSettings().setJavaScriptEnabled(true);
+            progress = findViewById(R.id.progress);
+            WebSettings settings = webView.getSettings();
+            settings.setJavaScriptEnabled(true);
+            TrustedWebViewSettings.isolateLocalContent(settings);
             webView.setWebViewClient(new MyTagsWebViewClient());
             webView.setWebChromeClient(new DialogWebChromeClient(this));
             WebViewCookieBridge.injectCookiesFromStore(this, url, true, () -> {
@@ -61,7 +81,6 @@ public class MyTagsActivity extends ToolbarActivity {
                     webView.loadUrl(url);
                 }
             });
-            progress = findViewById(R.id.progress);
         } catch (Throwable t) {
             Log.e(TAG, "WebView/CookieManager init failed", t);
             new AlertDialog.Builder(this)
@@ -71,6 +90,16 @@ public class MyTagsActivity extends ToolbarActivity {
                     .setOnCancelListener(d -> finish())
                     .show();
         }
+    }
+
+    private boolean isTrustedMyTagsUrl(String candidate) {
+        return TrustedWebRequestPolicy.isAllowedHttpsUrl(candidate, trustedHost);
+    }
+
+    private WebResourceResponse blockedResponse() {
+        return new WebResourceResponse("text/plain", "UTF-8", 403, "Blocked",
+                Collections.singletonMap("Cache-Control", "no-store"),
+                new ByteArrayInputStream(new byte[0]));
     }
 
     @Override
@@ -95,10 +124,25 @@ public class MyTagsActivity extends ToolbarActivity {
     }
 
     private class MyTagsWebViewClient extends WebViewClient {
+
+        @Nullable
+        @Override
+        public WebResourceResponse shouldInterceptRequest(WebView view,
+                WebResourceRequest request) {
+            return isTrustedMyTagsUrl(request.getUrl().toString())
+                    ? super.shouldInterceptRequest(view, request)
+                    : blockedResponse();
+        }
+
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+            return !isTrustedMyTagsUrl(request.getUrl().toString());
+        }
+
+        @SuppressWarnings("deprecation")
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            // Never load other urls
-            return !url.equals(MyTagsActivity.this.url);
+            return !isTrustedMyTagsUrl(url);
         }
 
         @Override
