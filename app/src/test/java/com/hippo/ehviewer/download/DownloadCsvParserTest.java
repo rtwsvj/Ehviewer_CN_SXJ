@@ -126,6 +126,19 @@ public class DownloadCsvParserTest {
     }
 
     @Test
+    public void jsonLinesRejectsRoundedOrOutOfRangeNumericIds() throws Exception {
+        String rounded = DownloadCsvParser.EXPORT_HEADER
+                + "\n{\"gid\":1.0000000000000001,\"token\":\"token\",\"pages\":0}\n";
+        String outOfRange = DownloadCsvParser.EXPORT_HEADER
+                + "\n{\"gid\":9223372036854775808,\"token\":\"token\",\"pages\":0}\n";
+
+        assertParseFailure(rounded, 64 * 1024, 4096, 10,
+                DownloadCsvParser.Reason.MALFORMED_ROW, 2);
+        assertParseFailure(outOfRange, 64 * 1024, 4096, 10,
+                DownloadCsvParser.Reason.MALFORMED_ROW, 2);
+    }
+
+    @Test
     public void rejectsInputBeyondTotalByteLimit() throws Exception {
         assertParseFailure("123456789", 8, 64, 10,
                 DownloadCsvParser.Reason.TOTAL_BYTES, 0);

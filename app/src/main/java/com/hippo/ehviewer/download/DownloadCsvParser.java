@@ -225,25 +225,19 @@ public final class DownloadCsvParser {
         }
 
         private static boolean isPositiveIntegral(Object value, long maximum) {
-            if (!(value instanceof Number)) {
+            if (!(value instanceof Integer) && !(value instanceof Long)) {
                 return false;
             }
-            Number number = (Number) value;
-            double asDouble = number.doubleValue();
-            long asLong = number.longValue();
-            return !Double.isNaN(asDouble) && !Double.isInfinite(asDouble) && asDouble == asLong
-                    && asLong > 0L && asLong <= maximum;
+            long asLong = ((Number) value).longValue();
+            return asLong > 0L && asLong <= maximum;
         }
 
         private static boolean isNonNegativeIntegral(Object value, long maximum) {
-            if (!(value instanceof Number)) {
+            if (!(value instanceof Integer) && !(value instanceof Long)) {
                 return false;
             }
-            Number number = (Number) value;
-            double asDouble = number.doubleValue();
-            long asLong = number.longValue();
-            return !Double.isNaN(asDouble) && !Double.isInfinite(asDouble) && asDouble == asLong
-                    && asLong >= 0L && asLong <= maximum;
+            long asLong = ((Number) value).longValue();
+            return asLong >= 0L && asLong <= maximum;
         }
 
         private static boolean isNonEmptyString(Object value) {
