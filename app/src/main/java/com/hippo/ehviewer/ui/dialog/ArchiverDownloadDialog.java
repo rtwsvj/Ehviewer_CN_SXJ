@@ -12,6 +12,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Environment;
 import android.os.Handler;
@@ -39,6 +40,7 @@ import com.hippo.ehviewer.client.data.GalleryDetail;
 import com.hippo.ehviewer.client.data.GalleryInfo;
 import com.hippo.ehviewer.client.exception.NoHAtHClientException;
 import com.hippo.ehviewer.dao.DownloadInfo;
+import com.hippo.ehviewer.gallery.GalleryProvider2;
 import com.hippo.ehviewer.spider.SpiderDen;
 import com.hippo.ehviewer.spider.SpiderQueen;
 import com.hippo.ehviewer.ui.MainActivity;
@@ -49,16 +51,27 @@ import com.hippo.scene.SceneFragment;
 import com.hippo.unifile.UniFile;
 import com.hippo.util.FileUtils;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
 public class ArchiverDownloadDialog implements
         DialogInterface.OnDismissListener, EhClient.Callback<ArchiverData> {
+    private static final long MAX_ARCHIVE_DOWNLOAD_BYTES = 2L * 1024L * 1024L * 1024L;
+    private static final long MAX_IMPORT_IMAGE_BYTES = 256L * 1024L * 1024L;
     final private GalleryDetail galleryDetail;
     final private Context context;
     final private GalleryDetailScene detailScene;
@@ -216,7 +229,7 @@ public class ArchiverDownloadDialog implements
             }
             Uri downloadUri = Uri.parse(downloadUrl);
             if (!isTrustedArchiveDownloadUri(downloadUri)) {
-                Log.w("ArchiverDownloadDialog", "Invalid download URL scheme: " + downloadUrl);
+                Log.w("ArchiverDownloadDialog", "Blocked untrusted archive download URL");
                 Toast.makeText(context, R.string.download_state_failed, Toast.LENGTH_LONG).show();
                 return;
             }
@@ -338,7 +351,13 @@ public class ArchiverDownloadDialog implements
         private void unzipAndImportFile(Cursor cursor) throws IllegalArgumentException, URISyntaxException {
             String path = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI));
             Uri uri = Uri.parse(path);
-            File tempDir = AppConfig.getExternalTempDir();
+            long archiveBytes = cursor.getLong(
+                    cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+            if (!isArchiveDownloadSizeAllowed(archiveBytes)) {
+                Log.w(TAG, "Downloaded archive is empty or exceeds the processing limit");
+                return;
+            }
+            File tempDir = AppConfig.getArchiverDir();
             if (tempDir == null) {
                 return;
             }
@@ -351,43 +370,30 @@ public class ArchiverDownloadDialog implements
             
             // Handle content:// URI by copying to temp file first
             new Thread(() -> {
-                String zipFilePath;
-                File tempZipFile = null;
+                File tempZipFile = new File(tempDir, extractionDir.getName() + ".zip");
                 try {
-                    if ("file".equals(uri.getScheme())) {
-                        // Direct file URI, can use directly
-                        File zipFile = new File(uri.getPath());
-                        zipFilePath = zipFile.getPath();
-                    } else {
-                        // Content URI, need to copy to temp file first
-                        tempZipFile = new File(tempDir, extractionDir.getName() + ".zip");
-                        UniFile sourceFile = UniFile.fromUri(context, uri);
-                        if (sourceFile == null) {
-                            Log.e(TAG, "Cannot access source file: " + uri);
-                            return;
-                        }
-                        UniFile destFile = UniFile.fromFile(tempZipFile);
-                        if (destFile == null) {
-                            Log.e(TAG, "Cannot create temp zip file");
-                            return;
-                        }
-                        if (!FileUtils.copyFile(sourceFile, destFile, false)) {
-                            Log.e(TAG, "Failed to copy zip file to temp location");
-                            return;
-                        }
-                        zipFilePath = tempZipFile.getPath();
+                    // Snapshot both file:// and content:// downloads into private cache before
+                    // parsing so another app cannot race or inject extraction inputs.
+                    UniFile sourceFile = UniFile.fromUri(context, uri);
+                    if (sourceFile == null || !copyArchiveSnapshot(sourceFile, tempZipFile,
+                            archiveBytes, MAX_ARCHIVE_DOWNLOAD_BYTES)) {
+                        Log.e(TAG, "Failed to snapshot archive into private cache");
+                        return;
                     }
-                    
-                    boolean result = GZIPUtils.UnZipFolder(zipFilePath, tempFilePath);
+
+                    boolean result = GZIPUtils.UnZipFolder(tempZipFile.getPath(), tempFilePath);
                     if (!result) {
                         return;
                     }
-                    importGallery(tempFilePath, downloadId);
+                    if (!importGallery(tempFilePath, downloadId)) {
+                        new Handler(Looper.getMainLooper()).post(() ->
+                                Toast.makeText(context, R.string.download_state_failed,
+                                        Toast.LENGTH_LONG).show());
+                    }
                 } catch (Exception e) {
                     Log.e(TAG, "Error in unzipAndImportFile", e);
                 } finally {
-                    // Clean up temporary zip file if it was created
-                    if (tempZipFile != null && tempZipFile.exists()) {
+                    if (tempZipFile.exists()) {
                         tempZipFile.delete();
                     }
                     deleteRecursively(extractionDir);
@@ -395,18 +401,31 @@ public class ArchiverDownloadDialog implements
             }).start();
         }
 
-        private void importGallery(String tempFilePath, long downloadId) {
+        private boolean importGallery(String tempFilePath, long downloadId) {
             if (tempFilePath.isEmpty() || context == null) {
-                return;
+                return false;
             }
 
             File tempFile = new File(tempFilePath);
 
             File[] tempPictures = tempFile.listFiles();
             if (tempPictures == null) {
-                return;
+                return false;
             }
-            Arrays.sort(tempPictures, (file1, file2) -> {
+            List<File> importablePictures = new ArrayList<>();
+            for (File picture : tempPictures) {
+                if (isImportableArchiveImage(picture)) {
+                    importablePictures.add(picture);
+                }
+            }
+            if (importablePictures.isEmpty()
+                    || (galleryDetail.pages > 0
+                    && importablePictures.size() != galleryDetail.pages)) {
+                Log.w(TAG, "Archive image count does not match gallery metadata");
+                return false;
+            }
+            File[] pictures = importablePictures.toArray(new File[0]);
+            Arrays.sort(pictures, (file1, file2) -> {
                 String f1N = file1.getName();
                 String f2N = file2.getName();
                 return f1N.compareTo(f2N);
@@ -417,42 +436,49 @@ public class ArchiverDownloadDialog implements
             UniFile downloadDir = spiderDen.getDownloadDir();
 
             if (downloadDir == null) {
-                return;
+                return false;
             }
+            List<UniFile> stagedFiles = new ArrayList<>();
+            List<String> destinationNames = new ArrayList<>();
             try {
-                for (int i = 0; i < tempPictures.length; i++) {
-                    File picture = tempPictures[i];
+                for (int i = 0; i < pictures.length; i++) {
+                    File picture = pictures[i];
 
                     String fileName = picture.getName();
-                    String[] nameArr = fileName.split("\\.");
-                    String newName = SpiderDen.generateImageFilename(i, "." + nameArr[nameArr.length - 1]);
-                    
-                    // Use UniFile API instead of File
-                    UniFile destFile = downloadDir.findFile(newName);
-                    if (destFile != null && destFile.exists()) {
-                        if (!destFile.delete()) {
-                            continue;
-                        }
+                    String extension = fileName.substring(fileName.lastIndexOf('.'));
+                    String newName = SpiderDen.generateImageFilename(i, extension);
+                    String stagingName = ".archiver-import-" + UUID.randomUUID() + extension;
+                    UniFile stagedFile = downloadDir.createFile(stagingName);
+                    if (stagedFile == null) {
+                        deleteFiles(stagedFiles);
+                        return false;
                     }
-                    
-                    // Create the destination file
-                    destFile = downloadDir.createFile(newName);
-                    if (destFile == null) {
-                        Log.e(TAG, "Failed to create file: " + newName);
-                        continue;
-                    }
-                    
-                    // Copy from File to UniFile
                     UniFile sourceFile = UniFile.fromFile(picture);
-
-                    if (!FileUtils.copyFile(sourceFile, destFile, false)) {
-                        Log.e(TAG, "Failed to copy file: " + picture.getName() + " to " + newName);
-                        // Try to delete the created file if copy failed
-                        destFile.delete();
+                    if (!FileUtils.copyFile(sourceFile, stagedFile, false)) {
+                        stagedFile.delete();
+                        deleteFiles(stagedFiles);
+                        return false;
                     }
+                    stagedFiles.add(stagedFile);
+                    destinationNames.add(newName);
+                }
+
+                // Never overwrite an existing gallery page during archive import. SAF cannot
+                // provide an atomic multi-file rollback, so fail before the first rename.
+                for (String destinationName : destinationNames) {
+                    UniFile existing = downloadDir.findFile(destinationName);
+                    if (existing != null && existing.exists()) {
+                        deleteFiles(stagedFiles);
+                        return false;
+                    }
+                }
+                if (!commitStagedFiles(stagedFiles, destinationNames)) {
+                    return false;
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Error in importGallery", e);
+                deleteFiles(stagedFiles);
+                return false;
             }
             String finalFileName = tempFile.getName();
             new Handler(Looper.getMainLooper()).post(() -> {
@@ -471,6 +497,115 @@ public class ArchiverDownloadDialog implements
                 Settings.deleteArchiverDownloadId(info.gid);
                 Settings.deleteArchiverDownload(downloadId);
             });
+            return true;
+        }
+    }
+
+    static boolean isArchiveDownloadSizeAllowed(long bytes) {
+        return bytes > 0L && bytes <= MAX_ARCHIVE_DOWNLOAD_BYTES;
+    }
+
+    static boolean isImportableArchiveImage(File file) {
+        if (file == null || !file.isFile() || file.length() <= 0L
+                || file.length() > MAX_IMPORT_IMAGE_BYTES) {
+            return false;
+        }
+        String name = file.getName().toLowerCase(Locale.US);
+        for (String extension : GalleryProvider2.SUPPORT_IMAGE_EXTENSIONS) {
+            if (name.endsWith(extension)) {
+                if (!hasExpectedImageSignature(file, extension)) {
+                    return false;
+                }
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inJustDecodeBounds = true;
+                BitmapFactory.decodeFile(file.getPath(), options);
+                return options.outWidth > 0 && options.outHeight > 0;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasExpectedImageSignature(File file, String extension) {
+        byte[] header = new byte[12];
+        int read;
+        try (InputStream input = new FileInputStream(file)) {
+            read = input.read(header);
+        } catch (IOException e) {
+            return false;
+        }
+        if (".jpg".equals(extension) || ".jpeg".equals(extension)) {
+            return read >= 3 && (header[0] & 0xff) == 0xff && (header[1] & 0xff) == 0xd8
+                    && (header[2] & 0xff) == 0xff;
+        }
+        if (".png".equals(extension)) {
+            byte[] png = {(byte) 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a};
+            return read >= png.length && Arrays.equals(png, Arrays.copyOf(header, png.length));
+        }
+        if (".gif".equals(extension)) {
+            return read >= 6 && header[0] == 'G' && header[1] == 'I' && header[2] == 'F'
+                    && header[3] == '8' && (header[4] == '7' || header[4] == '9')
+                    && header[5] == 'a';
+        }
+        if (".webp".equals(extension)) {
+            return read >= 12 && header[0] == 'R' && header[1] == 'I' && header[2] == 'F'
+                    && header[3] == 'F' && header[8] == 'W' && header[9] == 'E'
+                    && header[10] == 'B' && header[11] == 'P';
+        }
+        return false;
+    }
+
+    static boolean copyArchiveSnapshot(UniFile source, File destination, long expectedBytes,
+            long maxBytes) {
+        if (source == null || destination == null || expectedBytes <= 0L || maxBytes <= 0L
+                || expectedBytes > maxBytes) {
+            return false;
+        }
+        boolean success = false;
+        try (InputStream input = new BufferedInputStream(source.openInputStream());
+                OutputStream output = new BufferedOutputStream(new FileOutputStream(destination))) {
+            byte[] buffer = new byte[32 * 1024];
+            long copied = 0L;
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                if (count > maxBytes - copied) {
+                    return false;
+                }
+                output.write(buffer, 0, count);
+                copied += count;
+            }
+            output.flush();
+            success = copied == expectedBytes;
+            return success;
+        } catch (IOException | RuntimeException e) {
+            return false;
+        } finally {
+            if (!success && destination.exists()) {
+                destination.delete();
+            }
+        }
+    }
+
+    static boolean commitStagedFiles(List<UniFile> stagedFiles, List<String> destinationNames) {
+        if (stagedFiles.size() != destinationNames.size()) {
+            deleteFiles(stagedFiles);
+            return false;
+        }
+        for (int i = 0; i < stagedFiles.size(); i++) {
+            if (!stagedFiles.get(i).renameTo(destinationNames.get(i))) {
+                // RawFile and TreeDocumentFile update their own target after a successful rename,
+                // so deleting the complete list also rolls back pages already committed.
+                deleteFiles(stagedFiles);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void deleteFiles(List<UniFile> files) {
+        for (UniFile file : files) {
+            if (file != null) {
+                file.delete();
+            }
         }
     }
 
