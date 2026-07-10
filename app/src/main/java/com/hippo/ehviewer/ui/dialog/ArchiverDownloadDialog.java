@@ -54,6 +54,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Locale;
+import java.util.UUID;
 
 public class ArchiverDownloadDialog implements
         DialogInterface.OnDismissListener, EhClient.Callback<ArchiverData> {
@@ -213,8 +215,7 @@ public class ArchiverDownloadDialog implements
                 return;
             }
             Uri downloadUri = Uri.parse(downloadUrl);
-            String scheme = downloadUri.getScheme();
-            if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
+            if (!isTrustedArchiveDownloadUri(downloadUri)) {
                 Log.w("ArchiverDownloadDialog", "Invalid download URL scheme: " + downloadUrl);
                 Toast.makeText(context, R.string.download_state_failed, Toast.LENGTH_LONG).show();
                 return;
@@ -344,7 +345,9 @@ public class ArchiverDownloadDialog implements
             long downloadId = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID));
 //            String fileName = galleryDetail.title.replaceAll("/","");
             String fileName = createFileName(galleryDetail.title, galleryDetail.gid);
-            String tempFilePath = tempDir.getPath() + "/" + fileName;
+            File extractionDir = new File(tempDir,
+                    "archiver-" + downloadId + "-" + UUID.randomUUID());
+            String tempFilePath = extractionDir.getPath();
             
             // Handle content:// URI by copying to temp file first
             new Thread(() -> {
@@ -357,7 +360,7 @@ public class ArchiverDownloadDialog implements
                         zipFilePath = zipFile.getPath();
                     } else {
                         // Content URI, need to copy to temp file first
-                        tempZipFile = new File(tempDir, fileName + ".zip");
+                        tempZipFile = new File(tempDir, extractionDir.getName() + ".zip");
                         UniFile sourceFile = UniFile.fromUri(context, uri);
                         if (sourceFile == null) {
                             Log.e(TAG, "Cannot access source file: " + uri);
@@ -387,6 +390,7 @@ public class ArchiverDownloadDialog implements
                     if (tempZipFile != null && tempZipFile.exists()) {
                         tempZipFile.delete();
                     }
+                    deleteRecursively(extractionDir);
                 }
             }).start();
         }
@@ -449,10 +453,6 @@ public class ArchiverDownloadDialog implements
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Error in importGallery", e);
-            }
-            boolean deleteTemp = tempFile.delete();
-            if (!deleteTemp) {
-                tempFile.deleteOnExit();
             }
             String finalFileName = tempFile.getName();
             new Handler(Looper.getMainLooper()).post(() -> {
@@ -526,5 +526,40 @@ public class ArchiverDownloadDialog implements
             result = gid > 0 ? "archiver_" + gid : "archiver";
         }
         return result;
+    }
+
+    private static void deleteRecursively(File file) {
+        if (file == null || !file.exists()) {
+            return;
+        }
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    deleteRecursively(child);
+                }
+            }
+        }
+        if (!file.delete()) {
+            file.deleteOnExit();
+        }
+    }
+
+    static boolean isTrustedArchiveDownloadUri(Uri uri) {
+        if (uri == null || uri.getUserInfo() != null
+                || !"https".equalsIgnoreCase(uri.getScheme())) {
+            return false;
+        }
+        int port = uri.getPort();
+        if (port != -1 && port != 443) {
+            return false;
+        }
+        String host = uri.getHost();
+        if (host == null) {
+            return false;
+        }
+        host = host.toLowerCase(Locale.US);
+        return host.equals(EhUrl.DOMAIN_E) || host.endsWith("." + EhUrl.DOMAIN_E)
+                || host.equals(EhUrl.DOMAIN_EX) || host.endsWith("." + EhUrl.DOMAIN_EX);
     }
 }
