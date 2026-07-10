@@ -59,6 +59,7 @@
 - API 35 首轮选择器使用了旧包名 `security.SecureCookieStorageDeviceTest`，失败为明确 `ClassNotFoundException`；改为实际 `client` 包后 10/10。
 - 启用 `LockMode.STRICT` 后，首次真实 connected test 暴露 `androidTestUtil`/UTP 缺锁；用该设备任务生成锁后，API 23/35 均以无 `--write-locks` 命令通过。
 - 归档图片测试最初证明 Robolectric 对任意字节 decode shadow 不足以代表真实格式；生产代码补 magic signature，再以真实 PNG 与伪 JPG 对抗测试验证。
+- 首次 final-HEAD 归档扫描命中 scanner 自测中的 synthetic encrypted-key header 字面量；`b506a462` 改为运行时拼接后，自测与重新归档扫描均通过，未增加忽略规则。
 
 ## 4. 独立只读复核
 

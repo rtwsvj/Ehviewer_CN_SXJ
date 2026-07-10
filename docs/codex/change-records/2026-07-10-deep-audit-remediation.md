@@ -8,7 +8,7 @@
 - 基线：`72ae3beb8ab76b707c611e8895f5d40fb1bff3e6`
 - 保护分支：`codex/backup-audit-pre-fix-20260710`
 - 工作分支：`codex/audit-remediation-20260710`
-- 最终实现 HEAD（报告提交前）：`3837d23f9707592fd08e02541342a3f7a4b658f7`
+- 最终实现 HEAD（含 scanner self-clean follow-up）：`b506a462970ccb4bb8095c07f57548f04e5c70e6`
 - Status：`completed-with-residuals`
 - Verification Status：`verified-local / external-validation-pending`
 
@@ -38,8 +38,8 @@
 | C14 | 有界 strict UTF-8 导入；新导出改版本化 JSONL 并保持持久化 nullable/unknown 字段自兼容 | parser、`DownloadFragment`、device test | `647c0c7a`、`7242b2f2`、`1152ce0c`、`44564514`、`a7d93c67` | round-trip、schema、numeric、API23/35 |
 | C15 | legacy DB 单事务/pending/稳定主键/真实 commit-marker replay | `EhDB` | `6905049c`、`7242b2f2` | rollback、retry、跨重启 replay |
 | C16 | 通知 PendingIntent immutable 且 identity 隔离 | factory、`DownloadService` | `62987f1a` | token/extras JVM tests；真实通知设备 smoke 待办 |
-| C17 | 依赖/CI/secret 门禁：去重、checksum、strict lock、peeled Actions、跨平台 AAPT2 | build、lockfiles、workflows、scanner、metadata | `12769fde`、`1c655235`、`fcf797d8`、`94c93885`、`3837d23f` | strict debug/release/connected/DAO；scanner self-test |
-| C18 | README、架构、开发、部署、排障与审计证据 | `README.md`、`docs/*.md` | `6c4da473`、本文所在报告提交 | 链接、命令、variant 与 CI 对照 |
+| C17 | 依赖/CI/secret 门禁：去重、checksum、strict lock、peeled Actions、跨平台 AAPT2、scanner 自身不误报 | build、lockfiles、workflows、scanner、metadata | `12769fde`、`1c655235`、`fcf797d8`、`94c93885`、`3837d23f`、`b506a462` | strict debug/release/connected/DAO；scanner self-test + archived HEAD scan |
+| C18 | README、架构、开发、部署、排障与审计证据 | `README.md`、`docs/*.md` | `6c4da473`、`fc372bf7`、本文所在修订提交 | 链接、命令、variant 与 CI 对照 |
 
 ## 性能等价说明
 
@@ -53,7 +53,7 @@
 
 ## 提交与回滚
 
-- 基线到最终实现 HEAD 共 32 个提交；最终报告由其后的文档提交保存。
+- 基线到 `b506a462` 共 34 个小提交（含计划、维护文档、最终报告和 scanner follow-up）；本文修订由其后的文档提交保存。
 - `codex/backup-audit-pre-fix-20260710` 是任务前取证/对比基线；它包含已清理的 fixture 与明文 Wi-Fi 风险，不可直接部署。
 - 回滚同一风险域时应按依赖链逆序 `git revert` 并重跑门禁；跨多个提交的 JSONL、归档和供应链修复不能假定单个 revert 后仍可构建或安全。
 - 不得使用破坏性 reset/clean。

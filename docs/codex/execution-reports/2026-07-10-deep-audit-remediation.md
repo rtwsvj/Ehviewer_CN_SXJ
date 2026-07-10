@@ -98,7 +98,7 @@
 
 ## 实际执行摘要
 
-- 基线到实现 HEAD `3837d23f` 共 32 个小提交；最终报告另以文档提交保存。
+- 最终实现 follow-up 为 `b506a462`；基线到该点共 34 个小提交（含计划、维护文档和首版最终报告）。
 - JVM/Robolectric 从基线 157 增至 242 tests，最终 0 failure、0 error。
 - debug/release lint 均为 920 warnings + 1 hint、0 error；基线是 922 warnings + 1 hint。
 - strict dependency verification 覆盖 564 components / 997 artifacts / 997 SHA-256。
@@ -114,3 +114,4 @@
 - 数据/性能复核发现 CSV 自身无法 round-trip、DB replay 测试是 no-op、零字节/未知长度页误判；均补版本化 JSONL、真实重放与三态策略。
 - 构建复核发现依赖未锁、Actions 使用 annotated-tag object、AAPT2 平台 hash 与 Parcelize 版本漂移；已补 strict locks、peeled commits、跨平台 metadata。
 - 第二轮只读复核又发现 JSONL nullable/unknown 持久字段和 API 23 `Double.isFinite` 兼容问题、connected-test UTP 缺锁；修复后重新执行 API 23/35 与 strict 全量门禁。
+- 最终提交归档扫描首次发现 scanner 的 synthetic encrypted-key header 会自触发；改为运行时拼接后，自测与 archived HEAD scan 均通过。
