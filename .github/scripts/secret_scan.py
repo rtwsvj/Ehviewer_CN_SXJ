@@ -185,8 +185,9 @@ def self_test() -> None:
         (root / "src" / "identity.json").write_text(
             '{"ipb_pass_hash":"' + identity + '"}\n', encoding="utf-8")
         (root / "src" / "release.keystore").write_bytes(b"binary-placeholder")
+        encrypted_header = "-" * 5 + "BEGIN ENCRYPTED PRIVATE KEY" + "-" * 5
         (root / "src" / "encrypted.pem").write_text(
-            "-----BEGIN ENCRYPTED PRIVATE KEY-----\nsynthetic\n", encoding="utf-8")
+            encrypted_header + "\nsynthetic\n", encoding="utf-8")
         (root / "src" / "signing.properties").write_text(
             "storeFile=outside-repository\n", encoding="utf-8")
         (root / "build" / "ignored.txt").write_text(token + "\n", encoding="utf-8")
