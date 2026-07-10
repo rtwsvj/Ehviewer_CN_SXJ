@@ -192,11 +192,15 @@
         <activity
             android:name=".ui.wifi.WiFiServerActivity"
             android:configChanges="screenSize|uiMode"
+            android:enabled="false"
+            android:exported="false"
             android:label="@string/wifi_server"
             android:theme="@style/AppTheme.Toolbar" />
         <activity
             android:name=".ui.wifi.WiFiClientActivity"
             android:configChanges="screenSize|uiMode"
+            android:enabled="false"
+            android:exported="false"
             android:label="@string/wifi_client"
             android:theme="@style/AppTheme.Toolbar" />
 

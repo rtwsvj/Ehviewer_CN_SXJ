@@ -18,7 +18,6 @@ package com.hippo.ehviewer.ui.fragment;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.Intent;
 import android.content.res.Resources;
 import android.os.Bundle;
 import android.os.Handler;
@@ -35,8 +34,6 @@ import com.hippo.ehviewer.AppConfig;
 import com.hippo.ehviewer.EhApplication;
 import com.hippo.ehviewer.EhDB;
 import com.hippo.ehviewer.R;
-import com.hippo.ehviewer.ui.wifi.WiFiClientActivity;
-import com.hippo.ehviewer.ui.wifi.WiFiServerActivity;
 import com.hippo.ehviewer.widget.ProgressHelper;
 import com.hippo.util.LogCat;
 import com.hippo.util.ReadableTime;
@@ -56,8 +53,6 @@ public class AdvancedFragment extends BasePreferenceFragmentCompat
     private static final String KEY_CLEAR_MEMORY_CACHE = "clear_memory_cache";
     private static final String KEY_APP_LANGUAGE = "app_language";
     private static final String KEY_IMPORT_DATA = "import_data";
-    private static final String KEY_WIFI_SERVER = "wifi_server";
-    private static final String KEY_WIFI_CLIENT = "wifi_client";
 
     private final DbSyncHandle dbSyncHandle = new DbSyncHandle(Looper.getMainLooper());
 
@@ -72,14 +67,10 @@ public class AdvancedFragment extends BasePreferenceFragmentCompat
         Preference clearMemoryCache = findPreference(KEY_CLEAR_MEMORY_CACHE);
         Preference appLanguage = findPreference(KEY_APP_LANGUAGE);
         Preference importData = findPreference(KEY_IMPORT_DATA);
-        Preference socketData = findPreference(KEY_WIFI_SERVER);
-        Preference clientData = findPreference(KEY_WIFI_CLIENT);
 
         dumpLogcat.setOnPreferenceClickListener(this);
         clearMemoryCache.setOnPreferenceClickListener(this);
         importData.setOnPreferenceClickListener(this);
-        socketData.setOnPreferenceClickListener(this);
-        clientData.setOnPreferenceClickListener(this);
 
         appLanguage.setOnPreferenceChangeListener(this);
     }
@@ -101,27 +92,9 @@ public class AdvancedFragment extends BasePreferenceFragmentCompat
                 importData(getActivity());
                 getActivity().setResult(Activity.RESULT_OK);
                 return true;
-            case KEY_WIFI_SERVER:
-                return gotoWiFiServerActivity();
-            case KEY_WIFI_CLIENT:
-                return gotoWiFiClientActivity();
             default:
                 return false;
         }
-    }
-
-    private boolean gotoWiFiClientActivity() {
-        Activity activity = getActivity();
-        Intent intent = new Intent(activity, WiFiClientActivity.class);
-        activity.startActivity(intent);
-        return false;
-    }
-
-    private boolean gotoWiFiServerActivity() {
-        Activity activity = getActivity();
-        Intent intent = new Intent(activity, WiFiServerActivity.class);
-        activity.startActivity(intent);
-        return false;
     }
 
     private boolean clearMemoryCache() {

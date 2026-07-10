@@ -119,16 +119,4 @@
         android:title="@string/settings_advanced_import_data"
         app:allowDividerAbove="true" />
 
-    <Preference
-        android:key="wifi_server"
-        android:summary="@string/settings_advanced_wifi_sander_summary"
-        android:title="@string/settings_advanced_wifi_sender"
-        app:allowDividerAbove="true" />
-
-    <Preference
-        android:key="wifi_client"
-        android:summary="@string/settings_advanced_wifi_client_summary"
-        android:title="@string/settings_advanced_wifi_client"
-        app:allowDividerAbove="true" />
-
 </PreferenceScreen>
