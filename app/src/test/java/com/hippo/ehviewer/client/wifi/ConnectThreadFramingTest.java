@@ -18,8 +18,10 @@ package com.hippo.ehviewer.client.wifi;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 
 import java.io.ByteArrayInputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -53,11 +55,11 @@ public class ConnectThreadFramingTest {
     }
 
     @Test
-    public void rejectsOversizedPayloadWithoutTerminator() throws IOException {
+    public void rejectsOversizedPayloadWithoutTerminator() {
         byte[] flood = new byte[4096]; // no terminator anywhere
         java.util.Arrays.fill(flood, (byte) 'a');
-        String result = ConnectThread.readFramedPayload(new ByteArrayInputStream(flood), 1024);
-        assertNull(result);
+        assertThrows(IOException.class,
+                () -> ConnectThread.readFramedPayload(new ByteArrayInputStream(flood), 1024));
     }
 
     @Test
@@ -66,10 +68,35 @@ public class ConnectThreadFramingTest {
     }
 
     @Test
-    public void returnsAccumulatedOnEofWithoutTerminator() throws IOException {
-        // Legacy behavior preserved: a normal-sized, unterminated payload at EOF is returned as-is.
-        String result = ConnectThread.readFramedPayload(stream("partial"), ConnectThread.MAX_PAYLOAD);
-        assertEquals("partial", result);
+    public void rejectsEofWithIncompleteFrame() {
+        assertThrows(EOFException.class,
+                () -> ConnectThread.readFramedPayload(
+                        stream("{\"partial\":"), ConnectThread.MAX_PAYLOAD));
+    }
+
+    @Test
+    public void retainsSecondFrameWhenTcpCoalescesReads() throws IOException {
+        ConnectThread.LegacyFrameDecoder decoder = new ConnectThread.LegacyFrameDecoder();
+        InputStream input = stream("{\"part\":1}:END{\"part\":2}:END");
+
+        assertEquals("{\"part\":1}", decoder.readFrame(input, ConnectThread.MAX_PAYLOAD));
+        assertEquals("{\"part\":2}", decoder.readFrame(input, ConnectThread.MAX_PAYLOAD));
+        assertNull(decoder.readFrame(input, ConnectThread.MAX_PAYLOAD));
+    }
+
+    @Test
+    public void ignoresDelimiterTextInsideJsonString() throws IOException {
+        ConnectThread.LegacyFrameDecoder decoder = new ConnectThread.LegacyFrameDecoder();
+        String payload = "{\"value\":\"literal }:END marker\"}";
+        assertEquals(payload, decoder.readFrame(stream(payload + ":END"), ConnectThread.MAX_PAYLOAD));
+    }
+
+    @Test
+    public void parsesUtf8WhenEveryByteIsSplit() throws IOException {
+        String payload = "{\"keyword\":\"中文标签\"}";
+        ConnectThread.LegacyFrameDecoder decoder = new ConnectThread.LegacyFrameDecoder();
+        InputStream split = new OneBytePerReadInputStream((payload + ":END").getBytes(StandardCharsets.UTF_8));
+        assertEquals(payload, decoder.readFrame(split, ConnectThread.MAX_PAYLOAD));
     }
 
     /** InputStream that hands back at most one byte per read() to force cross-chunk framing. */

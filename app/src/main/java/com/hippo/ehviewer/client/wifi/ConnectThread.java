@@ -10,10 +10,12 @@ import com.hippo.ehviewer.Analytics;
 import com.hippo.ehviewer.client.data.wifi.WiFiDataHand;
 
 import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 
 public class ConnectThread extends Thread {
 
@@ -58,6 +60,8 @@ public class ConnectThread extends Thread {
     private final int connectKind;
     /** The 6-digit code shown on the sender and typed into the receiver; required by both ends. */
     private final String pairCode;
+    private final LegacyFrameDecoder frameDecoder = new LegacyFrameDecoder();
+    private final Object outputLock = new Object();
     private OutputStream outputStream;
     Context context;
 
@@ -135,7 +139,7 @@ public class ConnectThread extends Thread {
         Message message = Message.obtain();
         message.what = SEND_MSG_SUCCESS;
         Bundle bundle = new Bundle();
-        bundle.putString("MSG", wiFiDataHand.toString());
+        bundle.putString("MSG", describeFrame(wiFiDataHand));
         message.setData(bundle);
         handler.sendMessage(message);
     }
@@ -185,22 +189,23 @@ public class ConnectThread extends Thread {
      * 发送数据
      */
     public void sendData(WiFiDataHand dataHand) {
-        try {
-            if (outputStream == null) {
-                outputStream = socket.getOutputStream();
+        synchronized (outputLock) {
+            try {
+                if (outputStream == null) {
+                    outputStream = socket.getOutputStream();
+                }
+                outputStream.write(dataHand.getSendBytes());
+                outputStream.flush();
+                Log.d("ConnectThread", "Sent " + describeFrame(dataHand));
+            } catch (IOException e) {
+                Analytics.recordException(e);
+                Message message = Message.obtain();
+                message.what = SEND_MSG_ERROR;
+                Bundle bundle = new Bundle();
+                bundle.putString("MSG", describeFrame(dataHand));
+                message.setData(bundle);
+                handler.sendMessage(message);
             }
-            Log.i("ConnectThread", "发送数据:" + (outputStream == null));
-            outputStream.write(dataHand.getSendBytes());
-            outputStream.flush();
-            Log.i("ConnectThread", "发送消息：" + dataHand);
-        } catch (IOException e) {
-            e.printStackTrace();
-            Message message = Message.obtain();
-            message.what = SEND_MSG_ERROR;
-            Bundle bundle = new Bundle();
-            bundle.putString("MSG", dataHand.toString());
-            message.setData(bundle);
-            handler.sendMessage(message);
         }
     }
 
@@ -213,16 +218,21 @@ public class ConnectThread extends Thread {
 
     private WiFiDataHand isToResponse(InputStream inputStream) {
         try {
-            String result = readFramedPayload(inputStream, MAX_PAYLOAD);
+            String result = frameDecoder.readFrame(inputStream, MAX_PAYLOAD);
             if (result == null || result.isEmpty()) {
+                close = true;
                 return null;
             }
             return new WiFiDataHand(result);
         } catch (Throwable throwable) {
             Analytics.recordException(throwable);
-            if (socket.isClosed()) {
-                interrupt();
+            close = true;
+            try {
+                socket.close();
+            } catch (IOException ignored) {
+                // The connection is already unusable after a framing error.
             }
+            interrupt();
             return null;
         }
     }
@@ -230,24 +240,12 @@ public class ConnectThread extends Thread {
     /**
      * Reads one terminator-framed payload from the stream. Returns the decoded payload with the
      * trailing ":END" delimiter removed (the closing '}' is kept), or {@code null} if the peer sends
-     * more than {@code maxPayload} bytes without a terminator (refused instead of buffering to OOM).
-     * On EOF without a terminator, returns whatever was accumulated (matching the legacy behavior).
+     * more than {@code maxPayload} bytes without a terminator. EOF with a partial frame is a protocol
+     * error instead of being treated as valid JSON.
      * Package-private + static so it can be unit-tested on the JVM without Android dependencies.
      */
     static String readFramedPayload(InputStream inputStream, int maxPayload) throws IOException {
-        TailMatchingBuffer buffer = new TailMatchingBuffer();
-        byte[] bytes = new byte[1024];
-        for (int length; (length = inputStream.read(bytes)) != -1; ) {
-            buffer.write(bytes, 0, length);
-            if (buffer.size() > maxPayload) {
-                return null;
-            }
-            if (buffer.endsWith(END_MARKER)) {
-                String result = buffer.toString("UTF-8");
-                return result.substring(0, result.length() - 4);
-            }
-        }
-        return buffer.size() == 0 ? null : buffer.toString("UTF-8");
+        return new LegacyFrameDecoder().readFrame(inputStream, maxPayload);
     }
 
     /**
@@ -279,19 +277,154 @@ public class ConnectThread extends Thread {
         return e.equals(a);
     }
 
-    /** ByteArrayOutputStream that can test its raw byte tail in O(marker) without copying the buffer. */
-    private static final class TailMatchingBuffer extends ByteArrayOutputStream {
-        boolean endsWith(byte[] marker) {
-            if (count < marker.length) {
+    static String describeFrame(WiFiDataHand dataHand) {
+        if (dataHand == null) {
+            return "frame(null)";
+        }
+        return "frame(type=" + dataHand.dataType + ", part=" + dataHand.pageIndex
+                + "/" + dataHand.pageSize + ")";
+    }
+
+    /**
+     * Connection-scoped decoder for the legacy delimiter protocol. It returns exactly one JSON
+     * object at a time and retains bytes belonging to later coalesced TCP frames.
+     */
+    static final class LegacyFrameDecoder {
+        private final FrameBuffer buffer = new FrameBuffer();
+        private final byte[] readBuffer = new byte[1024];
+        private int scanOffset;
+        private int depth;
+        private int rootEndOffset = -1;
+        private boolean started;
+        private boolean inString;
+        private boolean escaped;
+
+        String readFrame(InputStream inputStream, int maxPayload) throws IOException {
+            if (maxPayload <= 0) {
+                throw new IllegalArgumentException("maxPayload must be positive");
+            }
+
+            while (true) {
+                String frame = extractFrame(maxPayload);
+                if (frame != null) {
+                    return frame;
+                }
+                if (buffer.size() > maxPayload + END_MARKER.length) {
+                    throw new IOException("WiFi sync frame exceeds " + maxPayload + " bytes");
+                }
+
+                int length = inputStream.read(readBuffer);
+                if (length == -1) {
+                    if (buffer.size() == 0) {
+                        return null;
+                    }
+                    throw new EOFException("WiFi sync stream ended with an incomplete frame");
+                }
+                buffer.write(readBuffer, 0, length);
+            }
+        }
+
+        private String extractFrame(int maxPayload) throws IOException {
+            if (rootEndOffset < 0) {
+                for (int i = scanOffset; i < buffer.size(); i++) {
+                    byte value = buffer.byteAt(i);
+                    if (!started) {
+                        if (isJsonWhitespace(value)) {
+                            continue;
+                        }
+                        if (value != '{') {
+                            throw new IOException("WiFi sync frame must be a JSON object");
+                        }
+                        started = true;
+                        depth = 1;
+                        continue;
+                    }
+                    if (inString) {
+                        if (escaped) {
+                            escaped = false;
+                        } else if (value == '\\') {
+                            escaped = true;
+                        } else if (value == '"') {
+                            inString = false;
+                        }
+                        continue;
+                    }
+                    if (value == '"') {
+                        inString = true;
+                    } else if (value == '{') {
+                        depth++;
+                    } else if (value == '}') {
+                        depth--;
+                        if (depth < 0) {
+                            throw new IOException("WiFi sync frame has unbalanced JSON braces");
+                        }
+                        if (depth == 0) {
+                            rootEndOffset = i;
+                            break;
+                        }
+                    }
+                }
+                scanOffset = buffer.size();
+            }
+
+            if (rootEndOffset < 0 || buffer.size() < rootEndOffset + END_MARKER.length) {
+                return null;
+            }
+            if (!buffer.matchesAt(rootEndOffset, END_MARKER)) {
+                throw new IOException("WiFi sync frame has an invalid terminator");
+            }
+            int payloadLength = rootEndOffset + 1;
+            if (payloadLength > maxPayload) {
+                throw new IOException("WiFi sync frame exceeds " + maxPayload + " bytes");
+            }
+            String frame = buffer.decodePrefix(payloadLength);
+            buffer.discardPrefix(rootEndOffset + END_MARKER.length);
+            resetParserState();
+            return frame;
+        }
+
+        private void resetParserState() {
+            scanOffset = 0;
+            depth = 0;
+            rootEndOffset = -1;
+            started = false;
+            inString = false;
+            escaped = false;
+        }
+
+        private static boolean isJsonWhitespace(byte value) {
+            return value == ' ' || value == '\n' || value == '\r' || value == '\t';
+        }
+    }
+
+    /** Mutable byte buffer with prefix extraction, avoiding a full copy on every socket read. */
+    private static final class FrameBuffer extends ByteArrayOutputStream {
+        byte byteAt(int index) {
+            return buf[index];
+        }
+
+        boolean matchesAt(int offset, byte[] marker) {
+            if (offset < 0 || offset + marker.length > count) {
                 return false;
             }
-            int offset = count - marker.length;
             for (int i = 0; i < marker.length; i++) {
                 if (buf[offset + i] != marker[i]) {
                     return false;
                 }
             }
             return true;
+        }
+
+        String decodePrefix(int length) {
+            return new String(buf, 0, length, StandardCharsets.UTF_8);
+        }
+
+        void discardPrefix(int length) {
+            int remaining = count - length;
+            if (remaining > 0) {
+                System.arraycopy(buf, length, buf, 0, remaining);
+            }
+            count = Math.max(0, remaining);
         }
     }
 
