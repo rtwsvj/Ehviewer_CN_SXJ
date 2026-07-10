@@ -23,4 +23,4 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Validate Fastlane Supply Metadata
-        uses: ashutoshgngwr/validate-fastlane-supply-metadata@d7dd83eb37e3312d33f58b99e4e91d369347563c # v2.0.0
+        uses: ashutoshgngwr/validate-fastlane-supply-metadata@d03bc88bf15d7c2ef8682fa057afbf2e4bc85fb4 # v2.0.0
