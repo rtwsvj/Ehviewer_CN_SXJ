@@ -709,7 +709,7 @@ public class FileProvider extends ContentProvider {
             Map.Entry<String, File> mostSpecific = null;
             for (Map.Entry<String, File> root : mRoots.entrySet()) {
                 final String rootPath = root.getValue().getPath();
-                if (path.startsWith(rootPath) && (mostSpecific == null
+                if (containsPath(root.getValue(), new File(path)) && (mostSpecific == null
                         || rootPath.length() > mostSpecific.getValue().getPath().length())) {
                     mostSpecific = root;
                 }
@@ -722,7 +722,9 @@ public class FileProvider extends ContentProvider {
 
             // Start at first char of path under root
             final String rootPath = mostSpecific.getValue().getPath();
-            if (rootPath.endsWith("/")) {
+            if (path.equals(rootPath)) {
+                path = "";
+            } else if (rootPath.endsWith(File.separator)) {
                 path = path.substring(rootPath.length());
             } else {
                 path = path.substring(rootPath.length() + 1);
@@ -754,11 +756,23 @@ public class FileProvider extends ContentProvider {
                 throw new IllegalArgumentException("Failed to resolve canonical path for " + file);
             }
 
-            if (!file.getPath().startsWith(root.getPath())) {
+            if (!containsPath(root, file)) {
                 throw new SecurityException("Resolved path jumped beyond configured root");
             }
 
             return file;
+        }
+
+        /** True only when {@code file} is the root itself or a path-component descendant. */
+        private static boolean containsPath(File root, File file) {
+            String rootPath = root.getPath();
+            String filePath = file.getPath();
+            if (filePath.equals(rootPath)) {
+                return true;
+            }
+            String prefix = rootPath.endsWith(File.separator)
+                    ? rootPath : rootPath + File.separator;
+            return filePath.startsWith(prefix);
         }
     }
 
