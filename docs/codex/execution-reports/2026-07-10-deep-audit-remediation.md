@@ -3,11 +3,12 @@
 ## 元信息
 
 - 日期：2026-07-10
+- 执行状态：2026-07-11 完成；保留外部协调、真实账号与架构级残余
 - 用户批准：2026-07-10，明确回复“批准执行”
 - 基线提交：`72ae3beb8ab76b707c611e8895f5d40fb1bff3e6`
 - 基线保护分支：`codex/backup-audit-pre-fix-20260710`
 - 工作分支：`codex/audit-remediation-20260710`
-- 初始工作树：仅有 7 个审计前已存在的未跟踪 Markdown 文件；本任务不读取其内容、不修改、不暂存。
+- 初始工作树：仅有 7 个审计前已存在的未跟踪 Markdown 文件；未人工打开、未修改、未暂存。早期一次全工作树 scanner 会机械读取未排除文本，后续最终扫描改用提交归档。
 
 ## 用户请求
 
@@ -81,8 +82,8 @@
 
 ## 风险与回滚
 
-- 每个完成切片单独 commit，可用 `git revert <sha>` 回滚。
-- 基线分支始终指向任务前 HEAD。
+- 风险域使用小提交保存；跨多个提交的修复应按依赖链逆序 `git revert`，再运行完整门禁，不能假定单个 revert 后仍可构建或安全。
+- 基线分支始终指向任务前 HEAD，仅用于取证/对比；它会恢复已修风险，不可直接部署。
 - Wi-Fi 旧协议封口会暂时移除该功能入口；回滚会重新暴露明文协议，只能用于诊断。
 - fixture 凭据清理不得恢复旧值；若影响解析，改用另一组合成值。
 - 服务端凭据轮换、远端历史重写、真实账号和线上协议语义不在本地自动化权限内，必须在最终报告中标为外部动作。
@@ -95,3 +96,21 @@
 - `docs/audits/2026-07-10-remediation-final.md`
 - 对应源码、测试与小步提交。
 
+## 实际执行摘要
+
+- 基线到实现 HEAD `3837d23f` 共 32 个小提交；最终报告另以文档提交保存。
+- JVM/Robolectric 从基线 157 增至 242 tests，最终 0 failure、0 error。
+- debug/release lint 均为 920 warnings + 1 hint、0 error；基线是 922 warnings + 1 hint。
+- strict dependency verification 覆盖 564 components / 997 artifacts / 997 SHA-256。
+- `LockMode.STRICT` 锁定 debug、release、connected-test UTP、DAO compile/runtime；不带 `--write-locks` 的 unit/lint/APK/AndroidTest/connected/DAO 路径通过。
+- debug APK 27,798,141 bytes；unsigned release APK 24,368,914 bytes。
+- 临时 API 23 AVD 有 8 个执行通过，另 2 个 MediaStore case 因 SDK 条件预期跳过；API 35 执行 10/10；完成后均删除。
+- 用户原有 7 个未跟踪 Markdown 文件未修改或暂存；最终提交树 scanner 通过。
+- 未完成项集中在服务端凭据/历史、DownloadManager redirect 与 SAF 原子性、native WebView、外部图片 provider、native fuzz、覆盖率与主线程慢路径；详见最终审计报告。
+
+## 独立复核如何影响实现
+
+- 安全复核发现 service PendingIntent 缺 immutable、Activity token 碰撞、Cookie 手工登录字段可复用、归档快照/回滚/图片真实性不足；均补代码与回归。
+- 数据/性能复核发现 CSV 自身无法 round-trip、DB replay 测试是 no-op、零字节/未知长度页误判；均补版本化 JSONL、真实重放与三态策略。
+- 构建复核发现依赖未锁、Actions 使用 annotated-tag object、AAPT2 平台 hash 与 Parcelize 版本漂移；已补 strict locks、peeled commits、跨平台 metadata。
+- 第二轮只读复核又发现 JSONL nullable/unknown 持久字段和 API 23 `Double.isFinite` 兼容问题、connected-test UTP 缺锁；修复后重新执行 API 23/35 与 strict 全量门禁。
