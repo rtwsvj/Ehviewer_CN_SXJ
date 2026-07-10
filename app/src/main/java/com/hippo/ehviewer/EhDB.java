@@ -20,6 +20,7 @@ import static com.hippo.ehviewer.ui.fragment.AdvancedFragment.DB_LOADING;
 import static com.hippo.ehviewer.ui.fragment.AdvancedFragment.LOADING_PROGRESS;
 import static com.hippo.ehviewer.ui.fragment.AdvancedFragment.LOADING_STATUS;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -92,6 +93,8 @@ public class EhDB {
     public static int MAX_HISTORY_COUNT = 100;
 
     private static DaoSession sDaoSession;
+    // The helper is constructed exclusively with the process application context.
+    @SuppressLint("StaticFieldLeak")
     private static DBOpenHelper sDbHelper;
 
     private static boolean sHasOldDB;

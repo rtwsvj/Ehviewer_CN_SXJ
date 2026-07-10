@@ -503,9 +503,7 @@
     <string name="settings_eh_sign_out_tip">คุณได้ลงชื่อออกจากระบบแล้ว เริ่มแอปพลิเคชั่นใหม่เพื่อลงชื่อเข้าสู่ระบบอีกครั้ง</string>
     <string name="settings_eh_identity_cookies">คุกกี๊ยืนยันตัวตน</string>
     <string name="settings_eh_identity_cookies_summary">คุกกี๊สามารถใช้ในการลงชื่อเข้าสู่ระบบได้</string>
-    <string name="settings_eh_identity_cookies_signed">คุกกี๊ยืนยันตัวตนสามารถใช้ลงชื่อเข้าสู่ระบบสำหรับบัญชีนี้เท่านั้น&lt;br&gt;&lt;b&gt;เก็บ รักษา ให้ ปลอดภัย&lt;/b&gt;&lt;br&gt;&lt;br&gt;%s</string>
     <string name="settings_eh_identity_cookies_tourist">ยังไม่ลงชื่อเข้าสู่ระบบ</string>
-    <string name="settings_eh_identity_cookies_copy">คัดลอก</string>
     <string name="settings_eh_sign_out_restart">กำลังรีสตาร์ทอัตโนมัติให้คุณ กรุณารอสักครู่</string>
     <string name="settings_u_config">การตั้งค่า EHentai</string>
     <string name="settings_u_config_summary">การตั้งค่าบนเว็บไซต์ EHentai</string>
@@ -653,10 +651,6 @@
     <string name="settings_advanced_import_data">นำเข้าข้อมูล</string>
     <string name="settings_advanced_import_data_summary">ดึงข้อมูลต่างๆจากไฟล์สำเนาที่ทำมาก่อนหน้านี้</string>
     <string name="settings_advanced_import_data_successfully">การนำเข้าข้อมูลสำเร็จ</string>
-    <string name="settings_advanced_wifi_sender">การย้ายข้อมูลผ่าน WiFi</string>
-    <string name="settings_advanced_wifi_sander_summary">การย้ายข้อมูลผ่าน Wi-Fi Hotspot</string>
-    <string name="settings_advanced_wifi_client">การรับข้อมูลการย้ายผ่าน WiFi</string>
-    <string name="settings_advanced_wifi_client_summary">รับข้อมูลการย้ายจาก Wi-Fi Hotspot</string>
 
     <string name="settings_about">เกี่ยวกับ</string>
     <string name="settings_about_declaration" translatable="false">EhViewer</string>

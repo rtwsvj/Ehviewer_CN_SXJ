@@ -495,10 +495,8 @@
     <string name="settings_eh_identity_cookies_summary">可用于登录</string>
 <!--    <string name="settings_eh_lock_cookies_igneous">锁定Cookie igneous字段</string>-->
 <!--    <string name="settings_eh_lock_cookies_igneous_summary">可能会导致账号异常，非特殊情况，不建议开启。</string>-->
-    <string name="settings_eh_identity_cookies_signed">身份 Cookie 可用于登录该账号。&lt;br&gt;&lt;b&gt;注意数据安全&lt;/b&gt;&lt;br&gt;&lt;br&gt;%s</string>
     <string name="settings_eh_identity_cookies_present">已存储身份 Cookie。为保障安全，其具体值已隐藏。</string>
     <string name="settings_eh_identity_cookies_tourist">未登录</string>
-    <string name="settings_eh_identity_cookies_copy">复制</string>
     <string name="settings_u_config">EHentai 设置</string>
     <string name="settings_u_config_summary">EHentai 网站上的设置</string>
     <string name="settings_my_tags">我的标签</string>
@@ -671,10 +669,6 @@
     <string name="settings_advanced_import_data">导入数据</string>
     <string name="settings_advanced_import_data_summary">从外置存储器导入数据</string>
     <string name="settings_advanced_import_data_successfully">导入数据成功</string>
-    <string name="settings_advanced_wifi_sender">WiFi 数据迁移</string>
-    <string name="settings_advanced_wifi_sander_summary">通过WiFi热点迁移数据</string>
-    <string name="settings_advanced_wifi_client">WiFi 迁移数据接收</string>
-    <string name="settings_advanced_wifi_client_summary">接收来自WiFi热点的迁移数据</string>
 
     <string name="settings_about">更新与支持</string>
     <string name="settings_about_declaration_summary">EhViewer 与 E-Hentai.org 无任何联系</string>

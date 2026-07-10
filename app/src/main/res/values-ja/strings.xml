@@ -469,9 +469,7 @@
     <string name="settings_eh_identity_cookies_summary">ログイン用のCookieです</string>
     <!--    <string name="settings_eh_lock_cookies_igneous">Lock the Cookie igneous field</string>-->
     <!--    <string name="settings_eh_lock_cookies_igneous_summary">It is not recommended to enable it except in special circumstances.</string>-->
-    <string name="settings_eh_identity_cookies_signed">下記の情報を持つ誰でもこのアカウントにログインできますので&lt;br&gt;&lt;b&gt;絶対に他人に渡さないように！&lt;/b&gt;&lt;br&gt;&lt;br&gt;%s</string>
     <string name="settings_eh_identity_cookies_tourist">まだログインしていません</string>
-    <string name="settings_eh_identity_cookies_copy">コピー</string>
     <string name="settings_u_config">E-Hentai の設定</string>
     <string name="settings_u_config_summary">E-Hentai サイト上の設定をします</string>
     <string name="settings_my_tags">マイタグ</string>
@@ -617,10 +615,6 @@
     <string name="settings_advanced_import_data">データをインポート</string>
     <string name="settings_advanced_import_data_summary">内部ストレージからインポートします</string>
     <string name="settings_advanced_import_data_successfully">データをインポートしました</string>
-    <string name="settings_advanced_wifi_sender">Wi-Fi で移行をするデータを送信</string>
-    <string name="settings_advanced_wifi_sander_summary">Wi-Fi ホットスポット経由で移行をするデータを送信します</string>
-    <string name="settings_advanced_wifi_client">Wi-Fi で移行をするデータを受信</string>
-    <string name="settings_advanced_wifi_client_summary">Wi-Fi ホットスポット経由で移行をするデータを受信します</string>
     <string name="settings_about">このアプリについて</string>
     <string name="settings_about_declaration" translatable="false">EhViewer</string>
     <string name="settings_about_declaration_summary">EhViewer は E-Hentai.org と一切の関係がございません。</string>

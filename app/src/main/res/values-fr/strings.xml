@@ -609,10 +609,6 @@
     <string name="settings_advanced_import_data">Importer les données</string>
     <string name="settings_advanced_import_data_summary">Charger les données exportées</string>
     <string name="settings_advanced_import_data_successfully">Importation complète avec succès</string>
-    <string name="settings_advanced_wifi_sender">Migration de données Wi-Fi</string>
-    <string name="settings_advanced_wifi_sander_summary">Migration de données via point d\'accès Wi-Fi</string>
-    <string name="settings_advanced_wifi_client">Réception de données de migration Wi-Fi</string>
-    <string name="settings_advanced_wifi_client_summary">Recevoir les données de migration depuis les points d\'accès Wi-Fi</string>
 
     <string name="settings_about">À propos de l\'application</string>
     <string name="settings_about_declaration_summary">EhViewer ne s\'affilie à E-Hentai de aucune manière.</string>
@@ -799,9 +795,7 @@
     <string name="settings_about_donate_copied">Copiée</string>
     <string name="settings_eh_identity_cookies">Voir les cookies</string>
     <string name="settings_eh_identity_cookies_summary">Les cookies qui sont utilisés pour vous identifier</string>
-    <string name="settings_eh_identity_cookies_signed">Tout le monde peut utiliser les cookies de ce compte pour s\'y connecter.&lt;br&gt;&lt;b&gt;GARDEZ-LES BIEN !&lt;/b&gt;&lt;br&gt;&lt;br&gt;%s</string>
     <string name="settings_eh_identity_cookies_tourist">Vous ne vous êtes pas connecté.</string>
-    <string name="settings_eh_identity_cookies_copy">Copier</string>
     <string name="settings_eh_show_gallery_pages">Montrer les nombres des pages des galeries</string>
     <string name="settings_eh_show_gallery_pages_summary">Montrer le nombre des pages des galerie dans la liste des galeries</string>
 

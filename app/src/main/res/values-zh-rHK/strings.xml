@@ -547,9 +547,7 @@
     <string name="settings_eh_sign_out_tip">已登出，重新啟動程式以再次登入</string>
     <string name="settings_eh_identity_cookies">身份識別 Cookie</string>
     <string name="settings_eh_identity_cookies_summary">可用於登入</string>
-    <string name="settings_eh_identity_cookies_signed">身份識別 Cookie 可用於登入該帳號。&lt;br&gt;&lt;b&gt;請注意數據安全&lt;/b&gt;&lt;br&gt;&lt;br&gt;%s</string>
     <string name="settings_eh_identity_cookies_tourist">未登入</string>
-    <string name="settings_eh_identity_cookies_copy">複製</string>
     <string name="settings_u_config">EHentai 設定</string>
     <string name="settings_u_config_summary">EHentai 網站上的設定</string>
     <string name="settings_my_tags">我的標籤</string>
@@ -699,10 +697,6 @@
     <string name="settings_advanced_import_data">匯入數據</string>
     <string name="settings_advanced_import_data_summary">從外置儲存裝置匯入數據</string>
     <string name="settings_advanced_import_data_successfully">匯入數據成功</string>
-    <string name="settings_advanced_wifi_sender">WiFi 數據遷移</string>
-    <string name="settings_advanced_wifi_sander_summary">通過 Wi-Fi 熱點進行數據遷移</string>
-    <string name="settings_advanced_wifi_client">WiFi 遷移數據接收</string>
-    <string name="settings_advanced_wifi_client_summary">從 Wi-Fi 熱點接收遷移數據</string>
 
     <string name="settings_about">關於</string>
     <string name="settings_about_declaration" translatable="false">EhViewer</string>

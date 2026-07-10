@@ -470,9 +470,7 @@
     <string name="settings_eh_sign_out_tip">Has cerrado sesión. Reinicia la aplicación para iniciar sesión nuevamente</string>
     <string name="settings_eh_identity_cookies">Cookies de identidad</string>
     <string name="settings_eh_identity_cookies_summary">Las cookies se pueden usar para iniciar sesión</string>
-    <string name="settings_eh_identity_cookies_signed">Las cookies de identidad se pueden usar para iniciar sesión en esta cuenta.&lt;br&gt;&lt;b&gt;MANTÉNGALAS SEGURAS&lt;/b&gt;&lt;br&gt;&lt;br&gt;%s</string>
     <string name="settings_eh_identity_cookies_tourist">No ha iniciado sesión.</string>
-    <string name="settings_eh_identity_cookies_copy">Copiar</string>
     <string name="settings_u_config">Configuración de EHentai</string>
     <string name="settings_u_config_summary">Configurar en la página de EHentai</string>
     <string name="settings_my_tags">Mis etiquetas</string>
@@ -617,10 +615,6 @@
     <string name="settings_advanced_import_data">Importar datos</string>
     <string name="settings_advanced_import_data_summary">Cargar datos que han sido guardado antes</string>
     <string name="settings_advanced_import_data_successfully">Datos importados exitosamente</string>
-    <string name="settings_advanced_wifi_sender">Migración de datos WiFi</string>
-    <string name="settings_advanced_wifi_sander_summary">Migración de datos vía punto de acceso Wi-Fi</string>
-    <string name="settings_advanced_wifi_client">Recepción de datos de migración WiFi</string>
-    <string name="settings_advanced_wifi_client_summary">Recibir datos de migración desde puntos de acceso Wi-Fi</string>
 
     <string name="settings_about">Acerca de</string>
     <string name="settings_about_declaration" translatable="false">EhViewer</string>
