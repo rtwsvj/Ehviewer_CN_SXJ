@@ -233,10 +233,11 @@ public class WiFiServerActivity extends ToolbarActivity implements AdapterView.O
                 wiFiDataHand.pageIndex = i + 1;
                 JSONArray objects = new JSONArray();
                 for (int j = 0; j < pageSize; j++) {
-                    if (list.isEmpty()) {
-                        continue;
+                    int index = i * pageSize + j;
+                    if (index >= list.size()) {
+                        break;
                     }
-                    GalleryInfo galleryInfo = list.remove(0);
+                    GalleryInfo galleryInfo = list.get(index);
                     objects.put(galleryInfo.toJson());
                 }
                 wiFiDataHand.addData(FAVORITE_INFO_DATA_KEY, objects);
@@ -263,10 +264,11 @@ public class WiFiServerActivity extends ToolbarActivity implements AdapterView.O
                 wiFiDataHand.pageIndex = i + 1;
                 JSONArray objects = new JSONArray();
                 for (int j = 0; j < pageSize; j++) {
-                    if (list.isEmpty()) {
-                        continue;
+                    int index = i * pageSize + j;
+                    if (index >= list.size()) {
+                        break;
                     }
-                    QuickSearch quickSearch = list.remove(0);
+                    QuickSearch quickSearch = list.get(index);
                     objects.put(quickSearch.toJson());
                 }
                 wiFiDataHand.addData(QUICK_SEARCH_DATA_KEY, objects);
@@ -304,10 +306,11 @@ public class WiFiServerActivity extends ToolbarActivity implements AdapterView.O
                 infoHand.pageIndex = i + 1;
                 JSONArray infoArray = new JSONArray();
                 for (int j = 0; j < pageSize; j++) {
-                    if (allInfo.isEmpty()) {
-                        continue;
+                    int index = i * pageSize + j;
+                    if (index >= allInfo.size()) {
+                        break;
                     }
-                    DownloadInfo downloadInfo = allInfo.remove(0);
+                    DownloadInfo downloadInfo = allInfo.get(index);
                     infoArray.put(downloadInfo.toJson());
                 }
                 infoHand.addData(DOWNLOAD_INFO_DATA_KEY, infoArray);
