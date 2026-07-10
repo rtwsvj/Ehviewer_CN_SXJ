@@ -36,6 +36,7 @@ import com.hippo.ehviewer.R;
 import com.hippo.ehviewer.Settings;
 import com.hippo.ehviewer.client.data.GalleryInfo;
 import com.hippo.ehviewer.download.DownloadManager;
+import com.hippo.ehviewer.library.InvalidDownloadScanner;
 import com.hippo.ehviewer.library.LibraryScanner;
 import com.hippo.ehviewer.ui.CommonOperations;
 import com.hippo.ehviewer.ui.DirPickerActivity;
@@ -215,7 +216,8 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
             new AlertDialog.Builder(requireActivity())
                     .setTitle(R.string.settings_download_clean_invalid_download)
                     .setMessage(R.string.settings_download_clean_invalid_download_confirm)
-                    .setPositiveButton(android.R.string.ok, (dialog, which) -> new CleanInvalidDownloadTask(this).execute())
+                    .setPositiveButton(android.R.string.ok,
+                            (dialog, which) -> new InspectInvalidDownloadTask(this).execute())
                     .setNegativeButton(android.R.string.cancel, null)
                     .show();
             return true;
@@ -591,13 +593,13 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
         }
     }
 
-    private static class CleanInvalidDownloadTask extends AsyncTask<Void, Integer, Integer> {
+    private static class InspectInvalidDownloadTask extends AsyncTask<Void, Integer, Integer> {
 
         private final WeakReference<DownloadFragment> mFragment;
         private ProgressDialog mProgressDialog;
         private final List<String> mLogs = new ArrayList<>();
 
-        public CleanInvalidDownloadTask(DownloadFragment fragment) {
+        public InspectInvalidDownloadTask(DownloadFragment fragment) {
             mFragment = new WeakReference<>(fragment);
         }
 
@@ -618,110 +620,16 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
         @Override
         protected Integer doInBackground(Void... voids) {
             UniFile downloadDir = Settings.getDownloadLocation();
-            if (downloadDir == null || !downloadDir.isDirectory()) {
-                return 0;
+            publishProgress(0, 1);
+            InvalidDownloadScanner.Result result = InvalidDownloadScanner.scan(downloadDir);
+            for (InvalidDownloadScanner.Issue issue : result.issues) {
+                mLogs.add(issue.toLogLine());
             }
-
-            UniFile[] files = downloadDir.listFiles();
-            if (files == null) {
-                return 0;
-            }
-
-            int invalidCount = 0;
-            int total = files.length;
-            publishProgress(0, total);
-
-            DownloadManager downloadManager = EhApplication.getDownloadManager(mFragment.get().requireActivity());
-
-            for (int i = 0; i < total; i++) {
-                UniFile dir = files[i];
-                publishProgress(i + 1, total);
-
-                if (!dir.isDirectory()) {
-                    continue;
-                }
-
-                UniFile[] subFiles = dir.listFiles();
-                if (subFiles == null || subFiles.length == 0) {
-                    mLogs.add("Empty directory: " + dir.getName());
-                    invalidCount++;
-                    dir.delete();
-                    continue;
-                }
-
-                UniFile ehViewerFile = dir.findFile(DownloadManager.DOWNLOAD_INFO_FILENAME);
-                if (ehViewerFile == null) {
-                    mLogs.add("Missing .ehviewer file: " + dir.getName());
-                    invalidCount++;
-                    continue;
-                }
-
-                try {
-                    String content = IOUtils.readString(ehViewerFile.openInputStream(), StandardCharsets.UTF_8.name());
-                    String[] lines = content.split("\n");
-                    if (lines.length < 8) {
-                        mLogs.add("Invalid .ehviewer file: " + dir.getName());
-                        invalidCount++;
-                        // Try to reset if possible
-                        long gid;
-                        try {
-                            gid = Long.parseLong(lines[0]);
-                        } catch (NumberFormatException e) {
-                            gid = -1;
-                        }
-                        if (gid != -1) {
-                            com.hippo.ehviewer.dao.DownloadInfo gi = downloadManager.getDownloadInfo(gid);
-                            if (gi != null) {
-                                gi.state = com.hippo.ehviewer.dao.DownloadInfo.STATE_NONE;
-                                EhDB.putDownloadInfo(gi);
-                            }
-                        }
-                        continue;
-                    }
-                    int pageCount = Integer.parseInt(lines[7]);
-                    int imageFileCount = 0;
-                    for (UniFile subFile : subFiles) {
-                        String name = subFile.getName();
-                        if (name != null && !name.startsWith(".")) {
-                            imageFileCount++;
-                        }
-                    }
-
-                    if (imageFileCount != pageCount) {
-                        mLogs.add("Inconsistent file count: " + dir.getName() + ", expected: " + pageCount + ", actual: " + imageFileCount);
-                        invalidCount++;
-                        for (UniFile subFile : subFiles) {
-                            String name = subFile.getName();
-                            if (name != null && !name.equals(DownloadManager.DOWNLOAD_INFO_FILENAME) && !name.startsWith(".")) {
-                                subFile.delete();
-                            }
-                        }
-                        // Reset to unfinished state
-                        long gid;
-                        try {
-                            gid = Long.parseLong(lines[0]);
-                        } catch (NumberFormatException e) {
-                            gid = -1;
-                        }
-                        if (gid != -1) {
-                            com.hippo.ehviewer.dao.DownloadInfo gi = downloadManager.getDownloadInfo(gid);
-                            if (gi != null) {
-                                gi.state = com.hippo.ehviewer.dao.DownloadInfo.STATE_NONE;
-                                EhDB.putDownloadInfo(gi);
-                            }
-                        }
-                    }
-                } catch (IOException | NumberFormatException e) {
-                    mLogs.add("Error processing directory: " + dir.getName() + " - " + e.getMessage());
-                    invalidCount++;
-                }
-            }
-
+            publishProgress(1, 1);
             if (!mLogs.isEmpty()) {
                 saveLog();
             }
-
-            return invalidCount;
+            return result.issues.size();
         }
 
         @Override
@@ -765,7 +673,7 @@ public class DownloadFragment extends PreferenceFragmentCompat implements
                 return;
             }
             SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmm", Locale.US);
-            String fileName = "delfile-" + sdf.format(new Date()) + ".log";
+            String fileName = "invalid-download-audit-" + sdf.format(new Date()) + ".log";
             UniFile logFile = downloadDir.createFile(fileName);
             if (logFile != null) {
                 try (OutputStream os = logFile.openOutputStream()) {
