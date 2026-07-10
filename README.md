@@ -8,6 +8,16 @@
 
 An E-Hentai Application for Android.
 
+## 维护者入口
+
+- [架构与核心数据流](docs/architecture.md)
+- [开发环境与验证命令](docs/development.md)
+- [部署与发布检查清单](docs/deployment.md)
+- [故障排查手册](docs/troubleshooting.md)
+- [工程审计与修复报告](docs/audits/2026-07-10-remediation-final.md)
+
+当前工程基线为 JDK 21、compile/target SDK 35、min SDK 23、Gradle 9.3.1，包含 Java、Kotlin 与四 ABI 原生代码。依赖构件受 `gradle/verification-metadata.xml` 的 SHA-256 严格校验；更新依赖时必须同步审阅校验元数据。
+
 # Download
 
 点击前往下载：
@@ -153,21 +163,31 @@ Telegram通知群: https://t.me/Ehviewer_xiaojieonly_channel
 
 # Build
 
-Windows
+前置条件：JDK 21、Android SDK 35、Build Tools 35.0.0、NDK 28.2.13676358、CMake 3.22.1。macOS/Linux 使用 `./gradlew`，Windows 使用 `gradlew.bat`。
 
-    > git clone https://github.com/xiaojieonly/Ehviewer_CN_SXJ.git
-    > cd EhViewer
-    > gradlew app:assembleDebug
+```bash
+git clone https://github.com/xiaojieonly/Ehviewer_CN_SXJ.git
+cd Ehviewer_CN_SXJ
+./gradlew --dependency-verification strict \
+  :app:testAppReleaseDebugUnitTest \
+  :app:lintAppReleaseDebug \
+  :app:assembleAppReleaseDebug
+```
 
-Linux
+Debug APK 位于：
 
-    $ git clone https://github.com/xiaojieonly/Ehviewer_CN_SXJ.git
-    $ cd EhViewer
-    $ ./gradlew app:assembleDebug
+```text
+app/build/outputs/apk/appRelease/debug/app-appRelease-debug.apk
+```
 
-生成的 apk 文件在 app\build\outputs\apk 目录下
+提交前还应编译设备测试：
 
-The apk is in app\build\outputs\apk
+```bash
+./gradlew --dependency-verification strict \
+  :app:compileAppReleaseDebugAndroidTestJavaWithJavac
+```
+
+不要并行启动多个共享同一工作树的 Gradle 构建；Android 资源中间目录可能因此出现带 ` 2` 后缀的重复生成文件。遇到该问题只清理可再生目录：`./gradlew :app:clean`，再串行重试。完整环境、CI、签名和排障说明见上方维护者文档。
 
 # Thanks
 
