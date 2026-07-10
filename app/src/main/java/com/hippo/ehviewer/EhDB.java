@@ -28,10 +28,12 @@ import android.database.sqlite.SQLiteOpenHelper;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.preference.PreferenceManager;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 
 import com.hippo.ehviewer.client.data.GalleryInfo;
 import com.hippo.ehviewer.client.data.ListUrlBuilder;
@@ -63,6 +65,7 @@ import com.hippo.lib.yorozuya.SimpleHandler;
 import com.hippo.lib.yorozuya.collect.SparseJLArray;
 
 import org.greenrobot.greendao.AbstractDao;
+import org.greenrobot.greendao.database.Database;
 import org.greenrobot.greendao.query.CloseableListIterator;
 import org.greenrobot.greendao.query.LazyList;
 import org.greenrobot.greendao.query.QueryBuilder;
@@ -84,13 +87,16 @@ import java.util.Set;
 public class EhDB {
 
     private static final String TAG = EhDB.class.getSimpleName();
+    private static final String KEY_LEGACY_MIGRATION_PENDING = "legacy_db_migration_pending";
 
     public static int MAX_HISTORY_COUNT = 100;
 
     private static DaoSession sDaoSession;
+    private static DBOpenHelper sDbHelper;
 
     private static boolean sHasOldDB;
     private static boolean sNewDB;
+    private static boolean sLegacyMigrationPending;
 
     private static class DBOpenHelper extends DaoMaster.OpenHelper {
 
@@ -171,14 +177,21 @@ public class EhDB {
                         "\"CREATE_TIME\" INTEGER," + // 14: create_time
                         "\"UPDATE_TIME\" INTEGER);"); // 15: update_time
             case 6: // 6 to 7, add ARCHIVE_URI column to DOWNLOADS table
-                try {
+                if (!hasColumn(db, "DOWNLOADS", "ARCHIVE_URI")) {
                     db.execSQL("ALTER TABLE \"DOWNLOADS\" ADD COLUMN \"ARCHIVE_URI\" TEXT");
-                } catch (Exception e) {
-                    // Column might already exist, ignore the error
-                    Log.w("EhDB", "Failed to add ARCHIVE_URI column, might already exist", e);
-                    Analytics.recordException(e);
                 }
         }
+    }
+
+    private static boolean hasColumn(SQLiteDatabase db, String table, String column) {
+        try (Cursor cursor = db.rawQuery("PRAGMA table_info(\"" + table + "\")", null)) {
+            while (cursor.moveToNext()) {
+                if (column.equalsIgnoreCase(cursor.getString(1))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static class OldDBHelper extends SQLiteOpenHelper {
@@ -205,214 +218,243 @@ public class EhDB {
         }
     }
 
-    public static void initialize(Context context) {
-        sHasOldDB = context.getDatabasePath("data").exists();
+    public static synchronized void initialize(Context context) {
+        Context appContext = context.getApplicationContext();
+        if (sDbHelper != null) {
+            if (sDaoSession != null) {
+                sDaoSession.clear();
+            }
+            sDbHelper.close();
+        }
+
+        sHasOldDB = appContext.getDatabasePath(OldDBHelper.DB_NAME).exists();
+        sNewDB = false;
 
         DBOpenHelper helper = new DBOpenHelper(
-                context.getApplicationContext(), "eh.db", null);
+                appContext, "eh.db", null);
 
         SQLiteDatabase db = helper.getWritableDatabase();
         DaoMaster daoMaster = new DaoMaster(db);
 
+        sDbHelper = helper;
         sDaoSession = daoMaster.newSession();
         MAX_HISTORY_COUNT = Settings.getHistoryInfoSize();
+
+        boolean persistedPending = Settings.getBoolean(KEY_LEGACY_MIGRATION_PENDING, false);
+        if (sHasOldDB && sNewDB) {
+            setLegacyMigrationPending(appContext, true);
+        } else if (!sHasOldDB && persistedPending) {
+            setLegacyMigrationPending(appContext, false);
+        } else {
+            sLegacyMigrationPending = sHasOldDB && persistedPending;
+        }
     }
 
-    public static boolean needMerge() {
-        return sNewDB && sHasOldDB;
+    public static synchronized boolean needMerge() {
+        return sHasOldDB && sLegacyMigrationPending;
     }
 
-    public static void mergeOldDB(Context context) {
+    @VisibleForTesting
+    static synchronized void closeForTesting() {
+        if (sDaoSession != null) {
+            sDaoSession.clear();
+            sDaoSession = null;
+        }
+        if (sDbHelper != null) {
+            sDbHelper.close();
+            sDbHelper = null;
+        }
+        sHasOldDB = false;
         sNewDB = false;
+        sLegacyMigrationPending = false;
+    }
 
-        OldDBHelper oldDBHelper = new OldDBHelper(context);
-        SQLiteDatabase oldDB;
-        try {
-            oldDB = oldDBHelper.getReadableDatabase();
-        } catch (Throwable e) {
-            ExceptionUtils.throwIfFatal(e);
+    public static synchronized void mergeOldDB(Context context) {
+        if (!needMerge()) {
             return;
         }
 
-        // Get GalleryInfo list
-        SparseJLArray<GalleryInfo> map = new SparseJLArray<>();
+        Context appContext = context.getApplicationContext();
+        OldDBHelper oldDBHelper = new OldDBHelper(appContext);
+        LegacyMigrationData migrationData;
         try {
-            Cursor cursor = oldDB.rawQuery("select * from " + OldDBHelper.TABLE_GALLERY, null);
-            if (cursor != null) {
-                if (cursor.moveToFirst()) {
-                    while (!cursor.isAfterLast()) {
-                        GalleryInfo gi = new GalleryInfo();
-                        gi.gid = cursor.getInt(0);
-                        gi.token = cursor.getString(1);
-                        gi.title = cursor.getString(2);
-                        gi.posted = cursor.getString(3);
-                        gi.category = cursor.getInt(4);
-                        gi.thumb = cursor.getString(5);
-                        gi.uploader = cursor.getString(6);
-                        try {
-                            // In 0.6.x version, NaN is stored
-                            gi.rating = cursor.getFloat(7);
-                        } catch (Throwable e) {
-                            ExceptionUtils.throwIfFatal(e);
-                            gi.rating = -1.0f;
-                        }
-
-                        map.put(gi.gid, gi);
-
-                        cursor.moveToNext();
-                    }
-                }
-                cursor.close();
-            }
-        } catch (Throwable i) {
-            ExceptionUtils.throwIfFatal(i);
-        }
-
-        // Merge local favorites
-        try {
-            Cursor cursor = oldDB.rawQuery("select * from " + OldDBHelper.TABLE_LOCAL_FAVOURITE, null);
-            if (cursor != null) {
-                LocalFavoritesDao dao = sDaoSession.getLocalFavoritesDao();
-                if (cursor.moveToFirst()) {
-                    long i = 0L;
-                    while (!cursor.isAfterLast()) {
-                        // Get GalleryInfo first
-                        long gid = cursor.getInt(0);
-                        GalleryInfo gi = map.get(gid);
-                        if (gi == null) {
-                            Log.e(TAG, "Can't get GalleryInfo with gid: " + gid);
-                            cursor.moveToNext();
-                            continue;
-                        }
-
-                        LocalFavoriteInfo info = new LocalFavoriteInfo(gi);
-                        info.setTime(i);
-                        dao.insert(info);
-                        cursor.moveToNext();
-                        i++;
-                    }
-                }
-                cursor.close();
-            }
+            migrationData = readLegacyMigrationData(oldDBHelper.getReadableDatabase());
         } catch (Throwable e) {
             ExceptionUtils.throwIfFatal(e);
-            // Ignore
-        }
-
-
-        // Merge quick search
-        try {
-            Cursor cursor = oldDB.rawQuery("select * from " + OldDBHelper.TABLE_TAG, null);
-            if (cursor != null) {
-                QuickSearchDao dao = sDaoSession.getQuickSearchDao();
-                if (cursor.moveToFirst()) {
-                    while (!cursor.isAfterLast()) {
-                        QuickSearch quickSearch = new QuickSearch();
-
-                        int mode = cursor.getInt(2);
-                        String search = cursor.getString(4);
-                        String tag = cursor.getString(7);
-                        if (mode == ListUrlBuilder.MODE_UPLOADER && search != null &&
-                                search.startsWith("uploader:")) {
-                            search = search.substring("uploader:".length());
-                        }
-
-                        quickSearch.setTime((long) cursor.getInt(0));
-                        quickSearch.setName(cursor.getString(1));
-                        quickSearch.setMode(mode);
-                        quickSearch.setCategory(cursor.getInt(3));
-                        quickSearch.setKeyword(mode == ListUrlBuilder.MODE_TAG ? tag : search);
-                        quickSearch.setAdvanceSearch(cursor.getInt(5));
-                        quickSearch.setMinRating(cursor.getInt(6));
-
-                        dao.insert(quickSearch);
-                        cursor.moveToNext();
-                    }
-                }
-                cursor.close();
+            Log.e(TAG, "Failed to read legacy database", e);
+            Analytics.recordException(e);
+            return;
+        } finally {
+            try {
+                oldDBHelper.close();
+            } catch (Throwable e) {
+                ExceptionUtils.throwIfFatal(e);
+                Log.w(TAG, "Failed to close legacy database", e);
             }
-        } catch (Throwable e) {
-            ExceptionUtils.throwIfFatal(e);
-            // Ignore
-        }
-
-        // Merge download info
-        try {
-            Cursor cursor = oldDB.rawQuery("select * from " + OldDBHelper.TABLE_DOWNLOAD, null);
-            if (cursor != null) {
-                DownloadsDao dao = sDaoSession.getDownloadsDao();
-                if (cursor.moveToFirst()) {
-                    long i = 0L;
-                    while (!cursor.isAfterLast()) {
-                        // Get GalleryInfo first
-                        long gid = cursor.getInt(0);
-                        GalleryInfo gi = map.get(gid);
-                        if (gi == null) {
-                            Log.e(TAG, "Can't get GalleryInfo with gid: " + gid);
-                            cursor.moveToNext();
-                            continue;
-                        }
-
-                        DownloadInfo info = new DownloadInfo(gi);
-                        int state = cursor.getInt(2);
-                        int legacy = cursor.getInt(3);
-                        if (state == DownloadInfo.STATE_FINISH && legacy > 0) {
-                            state = DownloadInfo.STATE_FAILED;
-                        }
-                        info.setState(state);
-                        info.setLegacy(legacy);
-                        if (cursor.getColumnCount() == 5) {
-                            info.setTime(cursor.getLong(4));
-                        } else {
-                            info.setTime(i);
-                        }
-                        dao.insert(info);
-                        cursor.moveToNext();
-                        i++;
-                    }
-                }
-                cursor.close();
-            }
-        } catch (Throwable e) {
-            ExceptionUtils.throwIfFatal(e);
-            // Ignore
         }
 
         try {
-            // Merge history info
-            Cursor cursor = oldDB.rawQuery("select * from " + OldDBHelper.TABLE_HISTORY, null);
-            if (cursor != null) {
-                HistoryDao dao = sDaoSession.getHistoryDao();
-                if (cursor.moveToFirst()) {
-                    while (!cursor.isAfterLast()) {
-                        // Get GalleryInfo first
-                        long gid = cursor.getInt(0);
-                        GalleryInfo gi = map.get(gid);
-                        if (gi == null) {
-                            Log.e(TAG, "Can't get GalleryInfo with gid: " + gid);
-                            cursor.moveToNext();
-                            continue;
-                        }
-
-                        HistoryInfo info = new HistoryInfo(gi);
-                        info.setMode(cursor.getInt(1));
-                        info.setTime(cursor.getLong(2));
-                        dao.insert(info);
-                        cursor.moveToNext();
-                    }
-                }
-                cursor.close();
-            }
+            insertLegacyMigrationData(migrationData);
+            setLegacyMigrationPending(appContext, false);
+            sNewDB = false;
         } catch (Throwable e) {
             ExceptionUtils.throwIfFatal(e);
-            // Ignore
+            sDaoSession.clear();
+            Log.e(TAG, "Failed to write legacy database migration", e);
+            Analytics.recordException(e);
+        }
+    }
+
+    private static LegacyMigrationData readLegacyMigrationData(SQLiteDatabase oldDB) {
+        SparseJLArray<GalleryInfo> galleryMap = new SparseJLArray<>();
+        try (Cursor cursor = oldDB.rawQuery(
+                "select * from " + OldDBHelper.TABLE_GALLERY, null)) {
+            while (cursor.moveToNext()) {
+                GalleryInfo galleryInfo = new GalleryInfo();
+                galleryInfo.gid = cursor.getInt(0);
+                galleryInfo.token = cursor.getString(1);
+                galleryInfo.title = cursor.getString(2);
+                galleryInfo.posted = cursor.getString(3);
+                galleryInfo.category = cursor.getInt(4);
+                galleryInfo.thumb = cursor.getString(5);
+                galleryInfo.uploader = cursor.getString(6);
+                try {
+                    // In 0.6.x versions, NaN may be stored here.
+                    galleryInfo.rating = cursor.getFloat(7);
+                } catch (Throwable e) {
+                    ExceptionUtils.throwIfFatal(e);
+                    galleryInfo.rating = -1.0f;
+                }
+                galleryMap.put(galleryInfo.gid, galleryInfo);
+            }
         }
 
+        List<LocalFavoriteInfo> localFavorites = new ArrayList<>();
+        try (Cursor cursor = oldDB.rawQuery(
+                "select * from " + OldDBHelper.TABLE_LOCAL_FAVOURITE, null)) {
+            long time = 0L;
+            while (cursor.moveToNext()) {
+                GalleryInfo galleryInfo = galleryMap.get(cursor.getInt(0));
+                if (galleryInfo == null) {
+                    Log.e(TAG, "Can't get GalleryInfo with gid: " + cursor.getInt(0));
+                    continue;
+                }
+                LocalFavoriteInfo info = new LocalFavoriteInfo(galleryInfo);
+                info.setTime(time++);
+                localFavorites.add(info);
+            }
+        }
+
+        List<QuickSearch> quickSearches = new ArrayList<>();
+        try (Cursor cursor = oldDB.rawQuery(
+                "select * from " + OldDBHelper.TABLE_TAG, null)) {
+            while (cursor.moveToNext()) {
+                QuickSearch quickSearch = new QuickSearch();
+                int mode = cursor.getInt(2);
+                String search = cursor.getString(4);
+                String tag = cursor.getString(7);
+                if (mode == ListUrlBuilder.MODE_UPLOADER && search != null &&
+                        search.startsWith("uploader:")) {
+                    search = search.substring("uploader:".length());
+                }
+                quickSearch.setTime((long) cursor.getInt(0));
+                quickSearch.setName(cursor.getString(1));
+                quickSearch.setMode(mode);
+                quickSearch.setCategory(cursor.getInt(3));
+                quickSearch.setKeyword(mode == ListUrlBuilder.MODE_TAG ? tag : search);
+                quickSearch.setAdvanceSearch(cursor.getInt(5));
+                quickSearch.setMinRating(cursor.getInt(6));
+                quickSearches.add(quickSearch);
+            }
+        }
+
+        List<DownloadInfo> downloads = new ArrayList<>();
+        try (Cursor cursor = oldDB.rawQuery(
+                "select * from " + OldDBHelper.TABLE_DOWNLOAD, null)) {
+            long time = 0L;
+            while (cursor.moveToNext()) {
+                GalleryInfo galleryInfo = galleryMap.get(cursor.getInt(0));
+                if (galleryInfo == null) {
+                    Log.e(TAG, "Can't get GalleryInfo with gid: " + cursor.getInt(0));
+                    continue;
+                }
+                DownloadInfo info = new DownloadInfo(galleryInfo);
+                int state = cursor.getInt(2);
+                int legacy = cursor.getInt(3);
+                if (state == DownloadInfo.STATE_FINISH && legacy > 0) {
+                    state = DownloadInfo.STATE_FAILED;
+                }
+                info.setState(state);
+                info.setLegacy(legacy);
+                info.setTime(cursor.getColumnCount() == 5 ? cursor.getLong(4) : time);
+                downloads.add(info);
+                time++;
+            }
+        }
+
+        List<HistoryInfo> history = new ArrayList<>();
+        try (Cursor cursor = oldDB.rawQuery(
+                "select * from " + OldDBHelper.TABLE_HISTORY, null)) {
+            while (cursor.moveToNext()) {
+                GalleryInfo galleryInfo = galleryMap.get(cursor.getInt(0));
+                if (galleryInfo == null) {
+                    Log.e(TAG, "Can't get GalleryInfo with gid: " + cursor.getInt(0));
+                    continue;
+                }
+                HistoryInfo info = new HistoryInfo(galleryInfo);
+                info.setMode(cursor.getInt(1));
+                info.setTime(cursor.getLong(2));
+                history.add(info);
+            }
+        }
+
+        return new LegacyMigrationData(localFavorites, quickSearches, downloads, history);
+    }
+
+    private static void insertLegacyMigrationData(LegacyMigrationData migrationData) {
+        Database database = sDaoSession.getDatabase();
+        database.beginTransaction();
         try {
-            oldDBHelper.close();
-        } catch (Throwable e) {
-            ExceptionUtils.throwIfFatal(e);
-            // Ignore
+            insertOrReplaceInTx(sDaoSession.getLocalFavoritesDao(), migrationData.localFavorites);
+            insertOrReplaceInTx(sDaoSession.getQuickSearchDao(), migrationData.quickSearches);
+            insertOrReplaceInTx(sDaoSession.getDownloadsDao(), migrationData.downloads);
+            insertOrReplaceInTx(sDaoSession.getHistoryDao(), migrationData.history);
+            database.setTransactionSuccessful();
+        } finally {
+            database.endTransaction();
+        }
+    }
+
+    private static <T> void insertOrReplaceInTx(AbstractDao<T, ?> dao, List<T> entities) {
+        if (!entities.isEmpty()) {
+            dao.insertOrReplaceInTx(entities);
+        }
+    }
+
+    private static void setLegacyMigrationPending(Context context, boolean pending) {
+        sLegacyMigrationPending = pending;
+        boolean persisted = PreferenceManager.getDefaultSharedPreferences(context)
+                .edit()
+                .putBoolean(KEY_LEGACY_MIGRATION_PENDING, pending)
+                .commit();
+        if (!persisted) {
+            Log.w(TAG, "Failed to persist legacy migration state");
+        }
+    }
+
+    private static final class LegacyMigrationData {
+        final List<LocalFavoriteInfo> localFavorites;
+        final List<QuickSearch> quickSearches;
+        final List<DownloadInfo> downloads;
+        final List<HistoryInfo> history;
+
+        LegacyMigrationData(List<LocalFavoriteInfo> localFavorites,
+                List<QuickSearch> quickSearches, List<DownloadInfo> downloads,
+                List<HistoryInfo> history) {
+            this.localFavorites = localFavorites;
+            this.quickSearches = quickSearches;
+            this.downloads = downloads;
+            this.history = history;
         }
     }
 
