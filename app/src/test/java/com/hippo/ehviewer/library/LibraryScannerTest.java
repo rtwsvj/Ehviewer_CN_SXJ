@@ -7,6 +7,7 @@
 package com.hippo.ehviewer.library;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -218,6 +219,31 @@ public class LibraryScannerTest {
         assertEquals(1, result.failed);
         assertEquals(0, result.items.size());
         assertTrue(containsWarning(result, "600-missing-token: manifest missing gid/token"));
+    }
+
+    @Test
+    public void scanDoesNotTrustStaleFinishedStateWhenImagesAreMissing() throws Exception {
+        File rootFile = folder.newFolder("stale-finish-library");
+        File dirFile = new File(rootFile, "700-stale");
+        assertTrue(dirFile.mkdir());
+        writeFile(new File(dirFile, "00000001.jpg"));
+
+        DownloadInfo info = new DownloadInfo(700L);
+        info.token = "token";
+        info.title = "Stale finish";
+        info.pages = 2;
+        info.state = DownloadInfo.STATE_FINISH;
+        assertTrue(LibraryManifest.write(info, null, UniFile.fromFile(dirFile)));
+
+        LibraryScanner.Result result = LibraryScanner.scan(UniFile.fromFile(rootFile));
+
+        assertEquals(1, result.items.size());
+        DownloadInfo scanned = result.items.get(0).downloadInfo;
+        assertFalse(result.items.get(0).complete);
+        assertEquals(DownloadInfo.STATE_NONE, scanned.state);
+        assertEquals(2, scanned.total);
+        assertEquals(1, scanned.finished);
+        assertEquals(1, scanned.legacy);
     }
 
     private static void resetDb() {

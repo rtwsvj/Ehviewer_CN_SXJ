@@ -46,29 +46,52 @@ public final class LibraryManifest {
 
     public static final String MANIFEST_FILENAME = "manifest.json";
     private static final String SCHEMA = "ehview.library.manifest.v1";
+    private static final String TEMP_FILENAME = ".manifest.json.tmp";
+    private static final String BACKUP_FILENAME = ".manifest.json.bak";
+    private static final Object[] WRITE_LOCKS = new Object[32];
+
+    static {
+        for (int i = 0; i < WRITE_LOCKS.length; i++) {
+            WRITE_LOCKS[i] = new Object();
+        }
+    }
 
     private LibraryManifest() {
     }
 
     @Nullable
     public static Record read(@NonNull UniFile dir) {
-        UniFile manifestFile = dir.findFile(MANIFEST_FILENAME);
-        if (manifestFile == null || !manifestFile.isFile()) {
-            return null;
+        synchronized (lockFor(dir)) {
+            boolean foundCandidate = false;
+            for (String filename : new String[] {
+                    MANIFEST_FILENAME, BACKUP_FILENAME, TEMP_FILENAME}) {
+                UniFile candidate = dir.findFile(filename);
+                if (candidate == null || !candidate.isFile()) {
+                    continue;
+                }
+                foundCandidate = true;
+                Record record = readCandidate(dir, candidate);
+                if (record != null && record.warning == null) {
+                    return record;
+                }
+            }
+            return foundCandidate ? Record.warning(dir.getName(), "manifest read failed") : null;
         }
+    }
 
+    @Nullable
+    private static Record readCandidate(@NonNull UniFile dir, @NonNull UniFile manifestFile) {
         InputStream is = null;
         try {
             is = manifestFile.openInputStream();
             JSONObject manifest = new JSONObject(IOUtils.readString(is, StandardCharsets.UTF_8.name()));
-
             DownloadInfo info = readDownloadInfo(manifest);
             if (info == null || info.gid <= 0) {
                 return Record.warning(dir.getName(), "manifest has no gallery info");
             }
-            String dirname = dir.getName();
             SpiderInfo spiderInfo = readSpiderInfo(manifest, info);
-            return new Record(dirname, info, spiderInfo, readFiles(manifest), null, true, false);
+            return new Record(dir.getName(), info, spiderInfo, readFiles(manifest),
+                    null, true, false);
         } catch (Throwable e) {
             return Record.warning(dir.getName(), "manifest read failed");
         } finally {
@@ -86,14 +109,23 @@ public final class LibraryManifest {
 
     public static boolean write(@NonNull GalleryInfo galleryInfo, @Nullable SpiderInfo spiderInfo,
             @NonNull UniFile dir) {
-        UniFile manifestFile = dir.createFile(MANIFEST_FILENAME);
-        if (manifestFile == null) {
-            return false;
+        synchronized (lockFor(dir)) {
+            JSONObject manifest = buildManifest(galleryInfo, spiderInfo, dir);
+            String payload = manifest.toString();
+            UniFile current = dir.findFile(MANIFEST_FILENAME);
+            if (current != null && payload.equals(readPayload(current))) {
+                return true;
+            }
+            JsonUtils.put(manifest, "generatedAt", System.currentTimeMillis());
+            return writeAtomically(dir, manifest.toString().getBytes(StandardCharsets.UTF_8));
         }
+    }
 
+    @NonNull
+    private static JSONObject buildManifest(@NonNull GalleryInfo galleryInfo,
+            @Nullable SpiderInfo spiderInfo, @NonNull UniFile dir) {
         JSONObject manifest = new JSONObject();
         JsonUtils.put(manifest, "schema", SCHEMA);
-        JsonUtils.put(manifest, "generatedAt", System.currentTimeMillis());
 
         JSONObject source = new JSONObject();
         JsonUtils.put(source, "type", "ehentai");
@@ -119,18 +151,76 @@ public final class LibraryManifest {
         }
         JsonUtils.put(manifest, "reading", reading);
         JsonUtils.put(manifest, "files", listFiles(dir));
+        return manifest;
+    }
 
-        OutputStream os = null;
-        try {
-            os = manifestFile.openOutputStream();
-            os.write(manifest.toString().getBytes(StandardCharsets.UTF_8));
-            os.flush();
-            return true;
-        } catch (IOException e) {
+    private static boolean writeAtomically(@NonNull UniFile dir, @NonNull byte[] bytes) {
+        UniFile staleTemp = dir.findFile(TEMP_FILENAME);
+        if (staleTemp != null && !staleTemp.delete()) {
             return false;
-        } finally {
-            IOUtils.closeQuietly(os);
         }
+        UniFile temp = dir.createFile(TEMP_FILENAME);
+        if (temp == null) {
+            return false;
+        }
+
+        try (OutputStream os = temp.openOutputStream()) {
+            os.write(bytes);
+            os.flush();
+        } catch (IOException e) {
+            temp.delete();
+            return false;
+        }
+
+        UniFile current = dir.findFile(MANIFEST_FILENAME);
+        UniFile backup = dir.findFile(BACKUP_FILENAME);
+        boolean movedCurrent = false;
+        if (current != null) {
+            if (backup != null && !backup.delete()) {
+                temp.delete();
+                return false;
+            }
+            if (!current.renameTo(BACKUP_FILENAME)) {
+                temp.delete();
+                return false;
+            }
+            movedCurrent = true;
+        }
+
+        if (temp.renameTo(MANIFEST_FILENAME)) {
+            UniFile oldBackup = dir.findFile(BACKUP_FILENAME);
+            if (oldBackup != null) {
+                oldBackup.delete();
+            }
+            return true;
+        }
+
+        if (movedCurrent) {
+            current.renameTo(MANIFEST_FILENAME);
+        }
+        temp.delete();
+        return false;
+    }
+
+    @Nullable
+    private static String readPayload(@NonNull UniFile manifestFile) {
+        InputStream is = null;
+        try {
+            is = manifestFile.openInputStream();
+            JSONObject manifest = new JSONObject(IOUtils.readString(is, StandardCharsets.UTF_8.name()));
+            manifest.remove("generatedAt");
+            return manifest.toString();
+        } catch (Throwable e) {
+            return null;
+        } finally {
+            IOUtils.closeQuietly(is);
+        }
+    }
+
+    @NonNull
+    private static Object lockFor(@NonNull UniFile dir) {
+        int index = dir.getUri().toString().hashCode() & (WRITE_LOCKS.length - 1);
+        return WRITE_LOCKS[index];
     }
 
     private static JSONArray listFiles(@NonNull UniFile dir) {

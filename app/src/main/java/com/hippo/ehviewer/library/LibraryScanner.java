@@ -94,7 +94,7 @@ public final class LibraryScanner {
         SpiderInfo spiderInfo = record.spiderInfo;
         int pages = getPages(info, spiderInfo);
         int imageCount = countImages(dir);
-        boolean complete = info.state == DownloadInfo.STATE_FINISH || (pages > 0 && imageCount >= pages);
+        boolean complete = pages > 0 && imageCount >= pages;
 
         if (info.title == null || info.title.length() == 0) {
             info.title = record.dirname != null ? record.dirname : Long.toString(info.gid);

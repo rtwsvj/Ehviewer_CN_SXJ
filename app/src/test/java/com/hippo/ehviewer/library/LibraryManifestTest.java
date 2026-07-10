@@ -7,8 +7,10 @@
 package com.hippo.ehviewer.library;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import android.util.SparseArray;
 
@@ -21,7 +23,9 @@ import com.hippo.ehviewer.spider.SpiderInfo;
 import com.hippo.unifile.UniFile;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 import org.junit.Before;
@@ -94,6 +98,71 @@ public class LibraryManifestTest {
     }
 
     @Test
+    public void identicalWriteIsCoalescedAndLeavesNoReplacementArtifacts() throws Exception {
+        File dirFile = folder.newFolder("coalesced");
+        writeFile(new File(dirFile, "00000001.jpg"));
+        UniFile dir = UniFile.fromFile(dirFile);
+        DownloadInfo info = new DownloadInfo(22L);
+        info.token = "token";
+        info.title = "Stable";
+        info.pages = 1;
+
+        assertTrue(LibraryManifest.write(info, null, dir));
+        long generatedAt = readGeneratedAt(new File(dirFile, LibraryManifest.MANIFEST_FILENAME));
+        Thread.sleep(20L);
+        assertTrue(LibraryManifest.write(info, null, dir));
+
+        assertEquals(generatedAt,
+                readGeneratedAt(new File(dirFile, LibraryManifest.MANIFEST_FILENAME)));
+        assertFalse(new File(dirFile, ".manifest.json.tmp").exists());
+        assertFalse(new File(dirFile, ".manifest.json.bak").exists());
+    }
+
+    @Test
+    public void readFallsBackToBackupLeftByInterruptedReplacement() throws Exception {
+        File dirFile = folder.newFolder("backup-recovery");
+        UniFile dir = UniFile.fromFile(dirFile);
+        DownloadInfo info = new DownloadInfo(23L);
+        info.token = "token";
+        info.title = "Recoverable";
+        info.pages = 1;
+        assertTrue(LibraryManifest.write(info, null, dir));
+
+        File manifest = new File(dirFile, LibraryManifest.MANIFEST_FILENAME);
+        assertTrue(manifest.renameTo(new File(dirFile, ".manifest.json.bak")));
+        LibraryManifest.Record record = LibraryManifest.read(dir);
+
+        assertNotNull(record);
+        assertNotNull(record.downloadInfo);
+        assertEquals(23L, record.downloadInfo.gid);
+    }
+
+    @Test
+    public void readFallsBackToValidBackupWhenPrimaryIsCorrupt() throws Exception {
+        File dirFile = folder.newFolder("corrupt-primary-recovery");
+        UniFile dir = UniFile.fromFile(dirFile);
+        DownloadInfo info = new DownloadInfo(24L);
+        info.token = "token";
+        info.title = "Recoverable backup";
+        info.pages = 1;
+        assertTrue(LibraryManifest.write(info, null, dir));
+
+        File manifest = new File(dirFile, LibraryManifest.MANIFEST_FILENAME);
+        File backup = new File(dirFile, ".manifest.json.bak");
+        assertTrue(copyFile(manifest, backup));
+        try (FileOutputStream os = new FileOutputStream(manifest)) {
+            os.write("not-json".getBytes(StandardCharsets.UTF_8));
+        }
+
+        LibraryManifest.Record record = LibraryManifest.read(dir);
+
+        assertNotNull(record);
+        assertNull(record.warning);
+        assertNotNull(record.downloadInfo);
+        assertEquals(24L, record.downloadInfo.gid);
+    }
+
+    @Test
     public void downloadInfoFromJsonDoesNotCastGalleryInfo() {
         DownloadInfo info = new DownloadInfo();
         info.gid = 9L;
@@ -157,5 +226,38 @@ public class LibraryManifestTest {
         try (FileOutputStream os = new FileOutputStream(file)) {
             os.write(bytes);
         }
+    }
+
+    private static long readGeneratedAt(File file) throws Exception {
+        byte[] bytes = new byte[(int) file.length()];
+        try (FileInputStream is = new FileInputStream(file)) {
+            int offset = 0;
+            while (offset < bytes.length) {
+                int read = is.read(bytes, offset, bytes.length - offset);
+                if (read < 0) {
+                    break;
+                }
+                offset += read;
+            }
+        }
+        return new JSONObject(new String(bytes, StandardCharsets.UTF_8)).getLong("generatedAt");
+    }
+
+    private static boolean copyFile(File source, File destination) throws Exception {
+        byte[] bytes = new byte[(int) source.length()];
+        try (FileInputStream is = new FileInputStream(source)) {
+            int offset = 0;
+            while (offset < bytes.length) {
+                int read = is.read(bytes, offset, bytes.length - offset);
+                if (read < 0) {
+                    return false;
+                }
+                offset += read;
+            }
+        }
+        try (FileOutputStream os = new FileOutputStream(destination)) {
+            os.write(bytes);
+        }
+        return true;
     }
 }
